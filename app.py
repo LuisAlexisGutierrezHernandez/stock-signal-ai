@@ -34,20 +34,19 @@ RANDOM_STATE = 42
 FEATURES = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
 
 COMPANY_NAMES = {
-    "NVDA": "NVIDIA", "MU": "Micron Technology", "AMD": "Advanced Micro Devices",
-    "INTC": "Intel", "AVGO": "Broadcom", "GOOG": "Google (Alphabet)",
-    "META": "Meta (Facebook)", "MSFT": "Microsoft", "ORCL": "Oracle",
+    "NVDA": "NVIDIA", "MU": "Micron", "AMD": "AMD", "INTC": "Intel",
+    "AVGO": "Broadcom", "GOOG": "Google", "META": "Meta",
+    "MSFT": "Microsoft", "ORCL": "Oracle",
 }
 
 # =========================================================
 # UTILIDADES DE FECHA
 # =========================================================
 def next_business_day(from_date=None):
-    """Devuelve el siguiente día hábil (lunes a viernes) después de la fecha dada."""
     if from_date is None:
         from_date = datetime.now()
     d = from_date + timedelta(days=1)
-    while d.weekday() >= 5:  # 5=sábado, 6=domingo
+    while d.weekday() >= 5:
         d += timedelta(days=1)
     return d
 
@@ -60,7 +59,6 @@ def format_spanish_date(dt):
 
 
 def confidence_label(pct):
-    """Convierte la confianza en una etiqueta amigable."""
     if pct >= 0.60:
         return "Señal fuerte", "#34d399", "💪"
     elif pct >= 0.45:
@@ -70,16 +68,14 @@ def confidence_label(pct):
 
 
 # =========================================================
-# CSS PERSONALIZADO
+# CSS
 # =========================================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-    .stApp {
-        background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 60%);
-    }
+    .stApp { background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 60%); }
 
     .hero-title {
         font-size: 3rem; font-weight: 800;
@@ -105,28 +101,7 @@ st.markdown("""
     .date-banner .value {
         color: #22d3ee; font-size: 1.6rem; font-weight: 800; margin-top: 0.3rem;
     }
-    .date-banner .sub {
-        color: #cbd5e1; font-size: 0.9rem; margin-top: 0.4rem;
-    }
-
-    .metric-card {
-        background: linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.9));
-        border: 1px solid rgba(148,163,184,0.15);
-        border-radius: 16px; padding: 1.25rem 1.5rem;
-        position: relative; overflow: hidden; height: 100%;
-    }
-    .metric-card::before {
-        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-        background: linear-gradient(90deg, #22d3ee, #3b82f6);
-    }
-    .metric-label {
-        color: #94a3b8; font-size: 0.78rem; font-weight: 500;
-        text-transform: uppercase; letter-spacing: 0.6px;
-    }
-    .metric-value {
-        color: #f1f5f9; font-size: 1.85rem; font-weight: 700; margin-top: 0.3rem;
-    }
-    .metric-delta { font-size: 0.82rem; margin-top: 0.25rem; color: #94a3b8; }
+    .date-banner .sub { color: #cbd5e1; font-size: 0.9rem; margin-top: 0.4rem; }
 
     .signal-card {
         background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
@@ -138,39 +113,28 @@ st.markdown("""
     .signal-card.bear { border-left: 5px solid #f87171; }
     .signal-card.lat  { border-left: 5px solid #cbd5e1; }
 
-    .signal-ticker {
-        font-size: 1.5rem; font-weight: 800; color: #f1f5f9;
-    }
-    .signal-company {
-        font-size: 0.85rem; color: #94a3b8; font-weight: 500;
-    }
-    .signal-price {
-        font-size: 1.1rem; color: #cbd5e1; font-weight: 600;
-    }
+    .signal-ticker { font-size: 1.5rem; font-weight: 800; color: #f1f5f9; }
+    .signal-company { font-size: 0.85rem; color: #94a3b8; font-weight: 500; }
+    .signal-price { font-size: 1.1rem; color: #cbd5e1; font-weight: 600; }
     .signal-badge {
         display: inline-block; padding: 0.5rem 1.1rem; border-radius: 999px;
         font-weight: 700; font-size: 0.95rem;
     }
-    .badge-bull { background: rgba(16,185,129,0.15); color: #34d399;
-                  border: 1px solid rgba(16,185,129,0.4); }
-    .badge-bear { background: rgba(239,68,68,0.15); color: #f87171;
-                  border: 1px solid rgba(239,68,68,0.4); }
-    .badge-lat  { background: rgba(148,163,184,0.15); color: #cbd5e1;
-                  border: 1px solid rgba(148,163,184,0.4); }
+    .badge-bull { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
+    .badge-bear { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.4); }
+    .badge-lat  { background: rgba(148,163,184,0.15); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.4); }
 
-    .signal-explain {
-        color: #94a3b8; font-size: 0.92rem; margin-top: 0.75rem;
-        padding-top: 0.75rem; border-top: 1px solid rgba(148,163,184,0.12);
+    .prob-row {
+        display: flex; align-items: center; gap: 0.75rem; margin-top: 0.55rem;
+        font-size: 0.9rem;
     }
-
-    .conf-bar-wrap {
-        display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem;
-    }
-    .conf-bar-bg {
-        flex: 1; height: 8px; background: rgba(148,163,184,0.15);
+    .prob-label { color: #cbd5e1; width: 150px; font-weight: 500; }
+    .prob-bar-bg {
+        flex: 1; height: 10px; background: rgba(148,163,184,0.13);
         border-radius: 999px; overflow: hidden;
     }
-    .conf-bar-fill { height: 100%; border-radius: 999px; }
+    .prob-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+    .prob-pct { color: #94a3b8; width: 55px; text-align: right; font-weight: 600; font-size: 0.85rem; }
 
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px; background: rgba(30,41,59,0.5);
@@ -190,16 +154,13 @@ st.markdown("""
         margin-top: 1.5rem; margin-bottom: 0.75rem;
         padding-left: 0.7rem; border-left: 4px solid #22d3ee;
     }
-
     .info-box {
-        background: rgba(34,211,238,0.06);
-        border-left: 4px solid #22d3ee;
+        background: rgba(34,211,238,0.06); border-left: 4px solid #22d3ee;
         padding: 1rem 1.25rem; border-radius: 8px;
         color: #cbd5e1; font-size: 0.92rem; margin-top: 1rem;
     }
     .disclaimer {
-        background: rgba(251,191,36,0.08);
-        border-left: 4px solid #fbbf24;
+        background: rgba(251,191,36,0.08); border-left: 4px solid #fbbf24;
         padding: 1rem 1.25rem; border-radius: 8px;
         color: #fcd34d; font-size: 0.88rem; margin-top: 2rem;
     }
@@ -243,7 +204,6 @@ def create_features_and_target(df):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def compute_everything():
-    """Descarga, procesa, entrena y devuelve todo listo para la UI."""
     raw = yf.download(
         TICKERS, period=PERIOD, interval="1d",
         group_by="ticker", progress=False, auto_adjust=True
@@ -260,6 +220,7 @@ def compute_everything():
 
     results_rows = []
     signals_rows = []
+    heat_rows = []
     importances = {}
 
     for t, df in processed.items():
@@ -294,12 +255,31 @@ def compute_everything():
         latest = X.iloc[[-1]]
         pred = int(knn_all.predict(latest)[0])
         proba = knn_all.predict_proba(latest)[0]
+        prob_dict = {int(c): float(p) for c, p in zip(knn_all.classes_, proba)}
 
         signals_rows.append({
             "Ticker": t,
             "Señal": pred,
             "Confianza": float(proba.max()),
+            "P_subida": prob_dict.get(2, 0.0),
+            "P_bajada": prob_dict.get(1, 0.0),
+            "P_sin_cambio": prob_dict.get(0, 0.0),
             "Precio actual": float(df["Close"].iloc[-1]),
+        })
+
+        # Datos para el heatmap
+        last_close = float(df["Close"].iloc[-1])
+        prev_close = float(df["Close"].iloc[-2])
+        change_pct = (last_close - prev_close) / prev_close * 100
+        last_vol = float(df["Volume"].iloc[-1])
+        dollar_volume = last_close * last_vol
+
+        heat_rows.append({
+            "Ticker": t,
+            "Company": COMPANY_NAMES.get(t, t),
+            "Change": change_pct,
+            "Price": last_close,
+            "Size": dollar_volume,
         })
 
         # Importancias
@@ -310,11 +290,12 @@ def compute_everything():
         ).fit(X, y)
         importances[t] = pd.Series(xgb_full.feature_importances_, index=FEATURES).to_dict()
 
-    return processed, pd.DataFrame(results_rows), pd.DataFrame(signals_rows), importances
+    return (processed, pd.DataFrame(results_rows),
+            pd.DataFrame(signals_rows), pd.DataFrame(heat_rows), importances)
 
 
 # =========================================================
-# HERO
+# HERO + FECHA
 # =========================================================
 st.markdown('<h1 class="hero-title">📈 Stock Signal AI</h1>', unsafe_allow_html=True)
 st.markdown(
@@ -322,9 +303,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# =========================================================
-# BANNER DE FECHA
-# =========================================================
 forecast_day = next_business_day()
 today = datetime.now()
 
@@ -338,11 +316,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# CARGA DE DATOS
+# CARGA
 # =========================================================
 with st.spinner("🔄 Analizando el mercado... esto toma ~30 segundos la primera vez."):
     try:
-        processed, summary_df, signals_df, importances = compute_everything()
+        processed, summary_df, signals_df, heat_df, importances = compute_everything()
     except Exception as e:
         st.error(f"⚠️ No se pudieron obtener los datos: {e}")
         st.stop()
@@ -352,69 +330,101 @@ if not processed:
     st.stop()
 
 # =========================================================
-# MÉTRICAS GLOBALES
-# =========================================================
-best_row = summary_df.sort_values("Mejor Precisión", ascending=False).iloc[0]
-avg_acc = summary_df["Mejor Precisión"].mean()
-bullish = int((signals_df["Señal"] == 2).sum())
-high_conf = int((signals_df["Confianza"] >= 0.45).sum())
-
-c1, c2, c3, c4 = st.columns(4)
-
-with c1:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Acciones analizadas</div>
-        <div class="metric-value">{len(processed)}</div>
-        <div class="metric-delta">Últimos 5 años de datos</div>
-    </div>""", unsafe_allow_html=True)
-
-with c2:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Señal más segura</div>
-        <div class="metric-value">{high_conf} / {len(signals_df)}</div>
-        <div class="metric-delta">Con confianza moderada o fuerte</div>
-    </div>""", unsafe_allow_html=True)
-
-with c3:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Predicen subida</div>
-        <div class="metric-value">{bullish} / {len(signals_df)}</div>
-        <div class="metric-delta">El resto predice bajada o sin cambio</div>
-    </div>""", unsafe_allow_html=True)
-
-with c4:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Precisión promedio</div>
-        <div class="metric-value">{avg_acc:.1%}</div>
-        <div class="metric-delta">Histórica · sobre datos de prueba</div>
-    </div>""", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# =========================================================
 # TABS
 # =========================================================
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
+    "🔥 Mapa de calor del mercado",
     "🎯 Señales del día",
-    "📊 Ver una acción en detalle",
     "🧠 ¿Qué tan confiable es?",
-    "📖 Aprende los conceptos",
 ])
 
 
-# ---------------- TAB 1: SEÑALES ----------------
+# ---------------- TAB 1: MAPA DE CALOR ----------------
 with tab1:
-    st.markdown('<div class="section-title">Predicciones de hoy explicadas de forma simple</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Cómo se movieron hoy las 9 acciones analizadas</div>', unsafe_allow_html=True)
+    st.caption(
+        "Tamaño del recuadro = volumen negociado (liquidez).  "
+        "Color = variación % del día: 🟢 verde subió, 🔴 rojo bajó."
+    )
+
+    heat_sorted = heat_df.sort_values("Change", ascending=False).reset_index(drop=True)
+
+    labels = [
+        f"<b>{r.Ticker}</b><br><span style='font-size:1.15em'>{r.Change:+.2f}%</span>"
+        for r in heat_sorted.itertuples()
+    ]
+
+    customdata = np.stack([
+        heat_sorted["Company"].values,
+        heat_sorted["Change"].values,
+        heat_sorted["Price"].values,
+    ], axis=-1)
+
+    fig_heat = go.Figure(go.Treemap(
+        labels=labels,
+        parents=[""] * len(heat_sorted),
+        values=heat_sorted["Size"].tolist(),
+        customdata=customdata,
+        marker=dict(
+            colors=heat_sorted["Change"].tolist(),
+            colorscale=[
+                [0.00, "#7f1d1d"],
+                [0.30, "#b91c1c"],
+                [0.45, "#4b0f0f"],
+                [0.50, "#1f2937"],
+                [0.55, "#0a3a1f"],
+                [0.70, "#15803d"],
+                [1.00, "#065f46"],
+            ],
+            cmid=0,
+            cmin=-4,
+            cmax=4,
+            line=dict(width=3, color="#0f172a"),
+        ),
+        textposition="middle center",
+        textfont=dict(size=16, color="white", family="Inter"),
+        hovertemplate=(
+            "<b>%{label}</b><br>"
+            "Empresa: %{customdata[0]}<br>"
+            "Cambio diario: %{customdata[1]:+.2f}%<br>"
+            "Precio: $%{customdata[2]:.2f}"
+            "<extra></extra>"
+        ),
+        tiling=dict(pad=3),
+        sort=True,
+    ))
+
+    fig_heat.update_layout(
+        template="plotly_dark",
+        height=520,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=20, b=10),
+    )
+
+    st.plotly_chart(fig_heat, use_container_width=True)
+
+    # Leyenda inferior
+    st.markdown("""
+    <div style="display:flex; justify-content:center; gap:1.2rem; margin-top:0.5rem; color:#94a3b8; font-size:0.82rem;">
+        <span>🔴 Bajó más de 2%</span>
+        <span>🟥 Bajó</span>
+        <span>⬛ Sin cambio</span>
+        <span>🟩 Subió</span>
+        <span>🟢 Subió más de 2%</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ---------------- TAB 2: SEÑALES DEL DÍA ----------------
+with tab2:
+    st.markdown('<div class="section-title">Predicciones explicadas de forma simple</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="info-box">
-        💡 <b>¿Qué estás viendo?</b> Para cada acción, la inteligencia artificial analizó 5 años
-        de datos históricos y predice qué podría pasar mañana. Ordenamos las señales
-        desde la más segura hasta la menos segura.
+        💡 Para cada acción, mostramos <b>cómo reparte el modelo el 100% de probabilidad</b>
+        entre los tres posibles resultados del próximo día hábil.
+        Ordenamos desde la señal más segura hasta la menos segura.
     </div>
     """, unsafe_allow_html=True)
 
@@ -426,134 +436,67 @@ with tab1:
         conf_text, conf_color, conf_emoji = confidence_label(conf)
 
         if row["Señal"] == 2:
-            badge_class = "badge-bull"
-            badge_text = "🟢 SUBIDA esperada"
-            card_class = "bull"
-            explain = "El sistema anticipa que el precio subirá más de 1%."
+            badge_class, badge_text, card_class = "badge-bull", "🟢 SUBIDA esperada", "bull"
         elif row["Señal"] == 1:
-            badge_class = "badge-bear"
-            badge_text = "🔴 BAJADA esperada"
-            card_class = "bear"
-            explain = "El sistema anticipa que el precio bajará más de 1%."
+            badge_class, badge_text, card_class = "badge-bear", "🔴 BAJADA esperada", "bear"
         else:
-            badge_class = "badge-lat"
-            badge_text = "⚪ SIN CAMBIO esperado"
-            card_class = "lat"
-            explain = "El sistema anticipa que el precio se moverá poco (menos de 1%)."
+            badge_class, badge_text, card_class = "badge-lat", "⚪ SIN CAMBIO esperado", "lat"
 
         company = COMPANY_NAMES.get(t, t)
+
+        p_sub = row["P_subida"] * 100
+        p_baj = row["P_bajada"] * 100
+        p_lat = row["P_sin_cambio"] * 100
 
         st.markdown(f"""
         <div class="signal-card {card_class}">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
                 <div>
-                    <div class="signal-ticker">{t} <span style="font-weight:500; color:#94a3b8; font-size:1rem;">· {company}</span></div>
+                    <div class="signal-ticker">{t}
+                        <span style="font-weight:500; color:#94a3b8; font-size:1rem;">· {company}</span>
+                    </div>
                     <div class="signal-price">Precio actual: ${row['Precio actual']:.2f}</div>
                 </div>
                 <div style="text-align:right;">
                     <span class="signal-badge {badge_class}">{badge_text}</span>
                 </div>
             </div>
-            <div class="signal-explain">{explain}</div>
-            <div class="conf-bar-wrap">
-                <span style="color:{conf_color}; font-size:0.85rem; font-weight:600; white-space:nowrap;">
-                    {conf_emoji} {conf_text}
-                </span>
-                <div class="conf-bar-bg">
-                    <div class="conf-bar-fill" style="width:{conf*100:.0f}%; background:{conf_color};"></div>
+
+            <div style="margin-top:1rem;">
+                <div style="color:#94a3b8; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.4rem;">
+                    Reparto de probabilidad del modelo
                 </div>
-                <span style="color:#94a3b8; font-size:0.8rem; min-width:3rem; text-align:right;">{conf:.0%}</span>
+
+                <div class="prob-row">
+                    <span class="prob-label">🟢 Subida &gt; 1%</span>
+                    <div class="prob-bar-bg">
+                        <div class="prob-bar-fill" style="width:{p_sub:.0f}%; background:#34d399;"></div>
+                    </div>
+                    <span class="prob-pct">{p_sub:.0f}%</span>
+                </div>
+
+                <div class="prob-row">
+                    <span class="prob-label">🔴 Bajada &gt; 1%</span>
+                    <div class="prob-bar-bg">
+                        <div class="prob-bar-fill" style="width:{p_baj:.0f}%; background:#f87171;"></div>
+                    </div>
+                    <span class="prob-pct">{p_baj:.0f}%</span>
+                </div>
+
+                <div class="prob-row">
+                    <span class="prob-label">⚪ Sin cambio</span>
+                    <div class="prob-bar-bg">
+                        <div class="prob-bar-fill" style="width:{p_lat:.0f}%; background:#cbd5e1;"></div>
+                    </div>
+                    <span class="prob-pct">{p_lat:.0f}%</span>
+                </div>
+            </div>
+
+            <div style="margin-top:0.85rem; color:{conf_color}; font-size:0.85rem; font-weight:600;">
+                {conf_emoji} {conf_text} · el modelo asigna {conf:.0%} al resultado más probable
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-
-# ---------------- TAB 2: DETALLE ----------------
-with tab2:
-    st.markdown('<div class="section-title">Elige una acción para ver su historia completa</div>', unsafe_allow_html=True)
-
-    ticker_sel = st.selectbox(
-        "Acción:",
-        list(processed.keys()),
-        format_func=lambda t: f"{t} — {COMPANY_NAMES.get(t, t)}",
-    )
-    df_sel = processed[ticker_sel]
-
-    # Precio + Medias
-    st.markdown(f'<div class="section-title">📈 Evolución del precio ({ticker_sel})</div>', unsafe_allow_html=True)
-    st.caption("Cada línea de color es un promedio del precio, útil para ver la tendencia general.")
-
-    fig_price = go.Figure()
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["Close"], name="Precio real",
-                                   line=dict(color="#22d3ee", width=2)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_40"], name="Tendencia corta (40 días)",
-                                   line=dict(color="#facc15", width=1.3)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_80"], name="Tendencia media (80 días)",
-                                   line=dict(color="#a855f7", width=1.3)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_160"], name="Tendencia larga (160 días)",
-                                   line=dict(color="#f43f5e", width=1.3)))
-    fig_price.update_layout(
-        template="plotly_dark", height=420,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=20, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis_title="Precio (USD)",
-    )
-    st.plotly_chart(fig_price, use_container_width=True)
-
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.markdown('<div class="section-title">🌡️ Termómetro de compra/venta (RSI)</div>', unsafe_allow_html=True)
-        st.caption("Arriba de 70 = la acción está muy cara (posible bajada). Abajo de 30 = muy barata (posible subida).")
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df_sel.index, y=df_sel["RSI"],
-                                     line=dict(color="#22d3ee", width=1.8), name="RSI"))
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="#f87171",
-                          annotation_text="Caro", annotation_position="right")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="#34d399",
-                          annotation_text="Barato", annotation_position="right")
-        fig_rsi.update_layout(template="plotly_dark", height=300,
-                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                              margin=dict(l=10, r=10, t=20, b=10),
-                              yaxis=dict(range=[0, 100]))
-        st.plotly_chart(fig_rsi, use_container_width=True)
-
-    with col_b:
-        st.markdown('<div class="section-title">📊 Frecuencia histórica de cada resultado</div>', unsafe_allow_html=True)
-        st.caption("De todas las veces que analizamos esta acción, ¿cuántas subió, bajó o se mantuvo?")
-        dist = df_sel["Target"].value_counts(normalize=True).sort_index()
-        label_map_short = {2: "🟢 Subió", 1: "🔴 Bajó", 0: "⚪ Sin cambio"}
-        labels = [label_map_short[i] for i in dist.index]
-        colors = ["#34d399" if i == 2 else "#f87171" if i == 1 else "#cbd5e1" for i in dist.index]
-        fig_dist = go.Figure(go.Bar(x=labels, y=dist.values, marker_color=colors,
-                                    text=[f"{v:.0%}" for v in dist.values],
-                                    textposition="outside"))
-        fig_dist.update_layout(template="plotly_dark", height=300,
-                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                               margin=dict(l=10, r=10, t=20, b=10),
-                               yaxis=dict(tickformat=".0%", range=[0, max(dist.values) * 1.2]))
-        st.plotly_chart(fig_dist, use_container_width=True)
-
-    # Importancias
-    st.markdown('<div class="section-title">🎯 ¿Qué indicadores pesaron más en la decisión?</div>', unsafe_allow_html=True)
-    st.caption("Mientras más larga la barra, más importante fue ese indicador para el modelo.")
-    imp = pd.Series(importances[ticker_sel]).sort_values()
-    nice_names = {
-        "RSI": "RSI (termómetro compra/venta)",
-        "Relative_Range": "Volatilidad diaria",
-        "Slope_SMA_40": "Tendencia corta",
-        "Slope_SMA_80": "Tendencia media",
-        "Slope_SMA_160": "Tendencia larga",
-    }
-    imp.index = [nice_names.get(i, i) for i in imp.index]
-    fig_imp = px.bar(x=imp.values, y=imp.index, orientation="h",
-                     labels={"x": "Importancia", "y": ""})
-    fig_imp.update_traces(marker_color="#3b82f6")
-    fig_imp.update_layout(template="plotly_dark", height=320,
-                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                          margin=dict(l=10, r=10, t=20, b=10))
-    st.plotly_chart(fig_imp, use_container_width=True)
 
 
 # ---------------- TAB 3: CONFIABILIDAD ----------------
@@ -564,10 +507,10 @@ with tab3:
     <div class="info-box">
         <b>Para entender los números:</b> Imagina que el modelo mira 100 días del pasado y trata
         de adivinar qué pasó. Si acierta 45 veces, su precisión es 45%.<br><br>
-        🔸 <b>Clase Mayoritaria (baseline):</b> Es lo que acertarías si SIEMPRE dijeses "sube" sin pensar.
-        Es el rival más tonto y hay que superarlo para que la IA sirva de algo.<br>
+        🔸 <b>Baseline (tonto):</b> Lo que acertarías si SIEMPRE dijeses "sube" sin pensar.
+        Hay que superarlo para que la IA sirva de algo.<br>
         🔸 <b>KNN:</b> Busca días parecidos en el pasado y copia lo que pasó.<br>
-        🔸 <b>XGBoost:</b> Construye reglas tipo "si pasa A y B, entonces C".
+        🔸 <b>XGBoost:</b> Construye reglas del tipo "si pasa A y B, entonces C".
     </div>
     """, unsafe_allow_html=True)
 
@@ -599,50 +542,6 @@ with tab3:
         margin=dict(l=10, r=10, t=20, b=10),
     )
     st.plotly_chart(fig_cmp, use_container_width=True)
-
-
-# ---------------- TAB 4: APRENDE ----------------
-with tab4:
-    st.markdown('<div class="section-title">📖 Glosario sencillo</div>', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🏢 ¿Qué es una acción?
-    Es una pequeña parte de una empresa. Si compras una acción de NVIDIA, eres dueño de un
-    pedacito de NVIDIA. Su precio sube cuando a la gente le va bien con la empresa y baja cuando
-    hay malas noticias.
-
-    ### 📈 ¿Qué significa "subida esperada"?
-    El sistema predice que el precio de esa acción subirá **más de 1%** en el próximo día hábil.
-    Por ejemplo: si cuesta $100, subiría al menos a $101.
-
-    ### 📉 ¿Qué significa "bajada esperada"?
-    El sistema predice que el precio bajará **más de 1%**. De $100 pasaría a $99 o menos.
-
-    ### ⚪ ¿Qué significa "sin cambio"?
-    El sistema cree que el precio se moverá **menos de 1%**, ni arriba ni abajo de forma clara.
-
-    ### 🎯 ¿Qué es la "confianza"?
-    Es qué tan seguro está el modelo. Una confianza de 40% significa que el modelo no está muy
-    seguro. **Ojo: confianza alta no garantiza que acierte.** En bolsa nunca hay garantías.
-
-    ### 🧠 ¿Qué es KNN?
-    Imagina que tienes 5 años de historia del mercado. El modelo busca los 50 días más parecidos
-    al día de hoy y mira qué pasó después. Si la mayoría subió, predice subida.
-
-    ### 🌳 ¿Qué es XGBoost?
-    Es un modelo que crea cientos de reglas tipo:
-    *"Si el RSI es mayor a 70 Y la tendencia es bajista, entonces probablemente baje."*
-    Combina muchas reglas simples para hacer una predicción más robusta.
-
-    ### 🎚️ ¿Qué es el RSI?
-    Es un número entre 0 y 100 que mide si una acción está "cara" o "barata":
-    - **Arriba de 70:** Mucha gente la está comprando → puede bajar pronto.
-    - **Abajo de 30:** Mucha gente la está vendiendo → puede subir pronto.
-
-    ### 📏 ¿Qué son las medias móviles (SMA)?
-    Es el precio promedio de los últimos N días. Sirven para ver la tendencia general:
-    - Si el precio está **arriba** de la media → tendencia alcista.
-    - Si está **abajo** → tendencia bajista.
-    """)
 
     st.markdown("""
     <div class="disclaimer">
