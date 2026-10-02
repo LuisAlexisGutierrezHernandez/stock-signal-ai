@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from sklearn.neighbors import KNeighborsClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # =========================================================
 # CONFIGURACIÓN DE PÁGINA
@@ -16,8 +16,58 @@ st.set_page_config(
     page_title="Stock Signal AI",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
+
+# =========================================================
+# CONSTANTES FIJAS (idénticas al notebook original)
+# =========================================================
+TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
+PERIOD = "5y"
+K_NEIGHBORS = 50
+N_ESTIMATORS = 100
+LEARNING_RATE = 0.05
+MAX_DEPTH = 3
+TEST_SIZE = 0.20
+RANDOM_STATE = 42
+
+FEATURES = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
+
+COMPANY_NAMES = {
+    "NVDA": "NVIDIA", "MU": "Micron Technology", "AMD": "Advanced Micro Devices",
+    "INTC": "Intel", "AVGO": "Broadcom", "GOOG": "Google (Alphabet)",
+    "META": "Meta (Facebook)", "MSFT": "Microsoft", "ORCL": "Oracle",
+}
+
+# =========================================================
+# UTILIDADES DE FECHA
+# =========================================================
+def next_business_day(from_date=None):
+    """Devuelve el siguiente día hábil (lunes a viernes) después de la fecha dada."""
+    if from_date is None:
+        from_date = datetime.now()
+    d = from_date + timedelta(days=1)
+    while d.weekday() >= 5:  # 5=sábado, 6=domingo
+        d += timedelta(days=1)
+    return d
+
+
+def format_spanish_date(dt):
+    days = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    months = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+              "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    return f"{days[dt.weekday()]} {dt.day} de {months[dt.month - 1]} de {dt.year}"
+
+
+def confidence_label(pct):
+    """Convierte la confianza en una etiqueta amigable."""
+    if pct >= 0.60:
+        return "Señal fuerte", "#34d399", "💪"
+    elif pct >= 0.45:
+        return "Señal moderada", "#fbbf24", "⚡"
+    else:
+        return "Señal débil", "#f87171", "⚠️"
+
 
 # =========================================================
 # CSS PERSONALIZADO
@@ -39,7 +89,24 @@ st.markdown("""
     }
     .hero-subtitle {
         text-align: center; color: #94a3b8; font-size: 1rem;
-        margin-top: 0.3rem; margin-bottom: 2rem;
+        margin-top: 0.3rem; margin-bottom: 1.5rem;
+    }
+
+    .date-banner {
+        background: linear-gradient(90deg, rgba(34,211,238,0.12), rgba(168,85,247,0.12));
+        border: 1px solid rgba(34,211,238,0.35);
+        border-radius: 16px; padding: 1.25rem 1.75rem;
+        text-align: center; margin-bottom: 2rem;
+    }
+    .date-banner .label {
+        color: #94a3b8; font-size: 0.85rem;
+        text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+    }
+    .date-banner .value {
+        color: #22d3ee; font-size: 1.6rem; font-weight: 800; margin-top: 0.3rem;
+    }
+    .date-banner .sub {
+        color: #cbd5e1; font-size: 0.9rem; margin-top: 0.4rem;
     }
 
     .metric-card {
@@ -61,14 +128,49 @@ st.markdown("""
     }
     .metric-delta { font-size: 0.82rem; margin-top: 0.25rem; color: #94a3b8; }
 
-    .badge { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 999px;
-             font-weight: 600; font-size: 0.85rem; }
+    .signal-card {
+        background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
+        border: 1px solid rgba(148,163,184,0.18);
+        border-radius: 18px; padding: 1.5rem 1.75rem;
+        margin-bottom: 1rem; position: relative; overflow: hidden;
+    }
+    .signal-card.bull { border-left: 5px solid #34d399; }
+    .signal-card.bear { border-left: 5px solid #f87171; }
+    .signal-card.lat  { border-left: 5px solid #cbd5e1; }
+
+    .signal-ticker {
+        font-size: 1.5rem; font-weight: 800; color: #f1f5f9;
+    }
+    .signal-company {
+        font-size: 0.85rem; color: #94a3b8; font-weight: 500;
+    }
+    .signal-price {
+        font-size: 1.1rem; color: #cbd5e1; font-weight: 600;
+    }
+    .signal-badge {
+        display: inline-block; padding: 0.5rem 1.1rem; border-radius: 999px;
+        font-weight: 700; font-size: 0.95rem;
+    }
     .badge-bull { background: rgba(16,185,129,0.15); color: #34d399;
-                  border: 1px solid rgba(16,185,129,0.35); }
+                  border: 1px solid rgba(16,185,129,0.4); }
     .badge-bear { background: rgba(239,68,68,0.15); color: #f87171;
-                  border: 1px solid rgba(239,68,68,0.35); }
+                  border: 1px solid rgba(239,68,68,0.4); }
     .badge-lat  { background: rgba(148,163,184,0.15); color: #cbd5e1;
-                  border: 1px solid rgba(148,163,184,0.35); }
+                  border: 1px solid rgba(148,163,184,0.4); }
+
+    .signal-explain {
+        color: #94a3b8; font-size: 0.92rem; margin-top: 0.75rem;
+        padding-top: 0.75rem; border-top: 1px solid rgba(148,163,184,0.12);
+    }
+
+    .conf-bar-wrap {
+        display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem;
+    }
+    .conf-bar-bg {
+        flex: 1; height: 8px; background: rgba(148,163,184,0.15);
+        border-radius: 999px; overflow: hidden;
+    }
+    .conf-bar-fill { height: 100%; border-radius: 999px; }
 
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px; background: rgba(30,41,59,0.5);
@@ -89,34 +191,25 @@ st.markdown("""
         padding-left: 0.7rem; border-left: 4px solid #22d3ee;
     }
 
+    .info-box {
+        background: rgba(34,211,238,0.06);
+        border-left: 4px solid #22d3ee;
+        padding: 1rem 1.25rem; border-radius: 8px;
+        color: #cbd5e1; font-size: 0.92rem; margin-top: 1rem;
+    }
     .disclaimer {
         background: rgba(251,191,36,0.08);
         border-left: 4px solid #fbbf24;
         padding: 1rem 1.25rem; border-radius: 8px;
         color: #fcd34d; font-size: 0.88rem; margin-top: 2rem;
     }
-
-    div[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-        border-right: 1px solid rgba(148,163,184,0.1);
-    }
 </style>
 """, unsafe_allow_html=True)
 
 
 # =========================================================
-# FUNCIONES CACHEADAS
+# PIPELINE CACHEADO
 # =========================================================
-@st.cache_data(ttl=3600, show_spinner=False)
-def download_data(tickers_tuple, period):
-    """Descarga datos históricos desde Yahoo Finance."""
-    raw = yf.download(
-        list(tickers_tuple), period=period, interval="1d",
-        group_by="ticker", progress=False, auto_adjust=True
-    )
-    return raw
-
-
 def clean_stock_data(df):
     data = df.dropna().copy()
     data = data[(data["Volume"] > 0) & (data["High"] != data["Low"])].copy()
@@ -149,50 +242,75 @@ def create_features_and_target(df):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def process_all(tickers_tuple, period):
-    """Descarga + limpia + features. Devuelve dict {ticker: df}."""
-    raw = download_data(tickers_tuple, period)
-    result = {}
-    for t in tickers_tuple:
+def compute_everything():
+    """Descarga, procesa, entrena y devuelve todo listo para la UI."""
+    raw = yf.download(
+        TICKERS, period=PERIOD, interval="1d",
+        group_by="ticker", progress=False, auto_adjust=True
+    )
+
+    processed = {}
+    for t in TICKERS:
         try:
             sub = raw[t].copy() if isinstance(raw.columns, pd.MultiIndex) else raw.copy()
             cleaned = clean_stock_data(sub)
-            result[t] = create_features_and_target(cleaned)
+            processed[t] = create_features_and_target(cleaned)
         except Exception:
             continue
-    return result
 
+    results_rows = []
+    signals_rows = []
+    importances = {}
 
-# =========================================================
-# SIDEBAR
-# =========================================================
-with st.sidebar:
-    st.markdown("### ⚙️ Configuración")
+    for t, df in processed.items():
+        X, y = df[FEATURES], df["Target"]
+        split = int(len(df) * (1 - TEST_SIZE))
+        X_tr, X_te = X.iloc[:split], X.iloc[split:]
+        y_tr, y_te = y.iloc[:split], y.iloc[split:]
 
-    DEFAULT_TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
+        knn = KNeighborsClassifier(n_neighbors=K_NEIGHBORS).fit(X_tr, y_tr)
+        acc_knn = accuracy_score(y_te, knn.predict(X_te))
 
-    selected = st.multiselect(
-        "Acciones a analizar",
-        options=DEFAULT_TICKERS + ["AAPL", "AMZN", "TSLA", "TSM", "QCOM", "PLTR"],
-        default=DEFAULT_TICKERS,
-        help="Selecciona una o varias acciones para analizar.",
-    )
+        xgb = XGBClassifier(
+            n_estimators=N_ESTIMATORS, max_depth=MAX_DEPTH,
+            learning_rate=LEARNING_RATE, random_state=RANDOM_STATE,
+            verbosity=0, eval_metric="mlogloss"
+        ).fit(X_tr, y_tr)
+        acc_xgb = accuracy_score(y_te, xgb.predict(X_te))
 
-    period = st.selectbox(
-        "Periodo histórico",
-        options=["2y", "3y", "5y", "10y"],
-        index=2,
-        help="Cantidad de años de historia.",
-    )
+        majority = y_te.value_counts(normalize=True).iloc[0]
 
-    st.markdown("---")
-    st.markdown("### 🤖 Modelo")
-    k_neighbors = st.slider("Vecinos KNN", 5, 100, 50, 5)
-    n_estimators = st.slider("Árboles XGBoost", 50, 300, 100, 50)
-    test_size = st.slider("% datos de prueba", 10, 40, 20, 5)
+        results_rows.append({
+            "Ticker": t,
+            "Clase Mayoritaria": majority,
+            "KNN": acc_knn,
+            "XGBoost": acc_xgb,
+            "Mejor Modelo": "KNN" if acc_knn >= acc_xgb else "XGBoost",
+            "Mejor Precisión": max(acc_knn, acc_xgb),
+        })
 
-    st.markdown("---")
-    st.caption("💡 *Los datos se cachean 1 hora para acelerar la app.*")
+        # Señal con TODOS los datos
+        knn_all = KNeighborsClassifier(n_neighbors=K_NEIGHBORS).fit(X, y)
+        latest = X.iloc[[-1]]
+        pred = int(knn_all.predict(latest)[0])
+        proba = knn_all.predict_proba(latest)[0]
+
+        signals_rows.append({
+            "Ticker": t,
+            "Señal": pred,
+            "Confianza": float(proba.max()),
+            "Precio actual": float(df["Close"].iloc[-1]),
+        })
+
+        # Importancias
+        xgb_full = XGBClassifier(
+            n_estimators=N_ESTIMATORS, max_depth=MAX_DEPTH,
+            learning_rate=LEARNING_RATE, random_state=RANDOM_STATE,
+            verbosity=0, eval_metric="mlogloss"
+        ).fit(X, y)
+        importances[t] = pd.Series(xgb_full.feature_importances_, index=FEATURES).to_dict()
+
+    return processed, pd.DataFrame(results_rows), pd.DataFrame(signals_rows), importances
 
 
 # =========================================================
@@ -200,120 +318,79 @@ with st.sidebar:
 # =========================================================
 st.markdown('<h1 class="hero-title">📈 Stock Signal AI</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="hero-subtitle">Predicción de señales bursátiles con Machine Learning · '
-    'KNN + XGBoost · Análisis técnico automatizado</p>',
+    '<p class="hero-subtitle">Inteligencia artificial que analiza acciones y predice hacia dónde irán</p>',
     unsafe_allow_html=True,
 )
 
-if not selected:
-    st.warning("⚠️ Selecciona al menos una acción en la barra lateral.")
-    st.stop()
+# =========================================================
+# BANNER DE FECHA
+# =========================================================
+forecast_day = next_business_day()
+today = datetime.now()
+
+st.markdown(f"""
+<div class="date-banner">
+    <div class="label">🗓️ Pronóstico para el próximo día hábil bursátil</div>
+    <div class="value">{format_spanish_date(forecast_day).capitalize()}</div>
+    <div class="sub">Hoy es {format_spanish_date(today)}. Este análisis predice qué pasará
+    en la próxima jornada en que abran los mercados.</div>
+</div>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # CARGA DE DATOS
 # =========================================================
-with st.spinner("🔄 Descargando y procesando datos de mercado..."):
-    processed = process_all(tuple(selected), period)
+with st.spinner("🔄 Analizando el mercado... esto toma ~30 segundos la primera vez."):
+    try:
+        processed, summary_df, signals_df, importances = compute_everything()
+    except Exception as e:
+        st.error(f"⚠️ No se pudieron obtener los datos: {e}")
+        st.stop()
 
 if not processed:
-    st.error("No se pudieron obtener datos. Intenta con otros tickers.")
+    st.error("No se pudieron obtener datos. Intenta recargar la página.")
     st.stop()
-
-features = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
-label_map = {2: "ALCISTA", 1: "BAJISTA", 0: "LATERAL"}
-badge_map = {2: "badge-bull", 1: "badge-bear", 0: "badge-lat"}
-color_map = {2: "#34d399", 1: "#f87171", 0: "#cbd5e1"}
 
 # =========================================================
 # MÉTRICAS GLOBALES
 # =========================================================
-summary_rows = []
-signals_rows = []
+best_row = summary_df.sort_values("Mejor Precisión", ascending=False).iloc[0]
+avg_acc = summary_df["Mejor Precisión"].mean()
+bullish = int((signals_df["Señal"] == 2).sum())
+high_conf = int((signals_df["Confianza"] >= 0.45).sum())
 
-for t, df in processed.items():
-    X = df[features]
-    y = df["Target"]
-    split = int(len(df) * (1 - test_size / 100))
-
-    X_tr, X_te = X.iloc[:split], X.iloc[split:]
-    y_tr, y_te = y.iloc[:split], y.iloc[split:]
-
-    knn = KNeighborsClassifier(n_neighbors=k_neighbors).fit(X_tr, y_tr)
-    acc_knn = accuracy_score(y_te, knn.predict(X_te))
-
-    xgb = XGBClassifier(
-        n_estimators=n_estimators, max_depth=3, learning_rate=0.05,
-        random_state=42, verbosity=0, use_label_encoder=False,
-        eval_metric="mlogloss"
-    ).fit(X_tr, y_tr)
-    acc_xgb = accuracy_score(y_te, xgb.predict(X_te))
-
-    majority = y_te.value_counts(normalize=True).iloc[0]
-    best = "KNN" if acc_knn >= acc_xgb else "XGBoost"
-
-    summary_rows.append({
-        "Ticker": t,
-        "Clase Mayoritaria": majority,
-        "KNN": acc_knn,
-        "XGBoost": acc_xgb,
-        "Mejor Modelo": best,
-        "Mejor Precisión": max(acc_knn, acc_xgb),
-    })
-
-    # Señal con TODOS los datos
-    knn_all = KNeighborsClassifier(n_neighbors=k_neighbors).fit(X, y)
-    latest = X.iloc[[-1]]
-    pred = knn_all.predict(latest)[0]
-    proba = knn_all.predict_proba(latest)[0]
-
-    signals_rows.append({
-        "Ticker": t,
-        "Señal": label_map[pred],
-        "Código": pred,
-        "Confianza": proba.max(),
-        "Precio actual": df["Close"].iloc[-1],
-        "Retorno 3d real": df["Close"].pct_change(3).iloc[-1],
-    })
-
-summary_df = pd.DataFrame(summary_rows).sort_values("Mejor Precisión", ascending=False)
-signals_df = pd.DataFrame(signals_rows)
-
-# ---- Métricas superiores ----
 c1, c2, c3, c4 = st.columns(4)
-best_row = summary_df.iloc[0]
 
 with c1:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">Acciones analizadas</div>
         <div class="metric-value">{len(processed)}</div>
-        <div class="metric-delta">Datos de {period}</div>
+        <div class="metric-delta">Últimos 5 años de datos</div>
     </div>""", unsafe_allow_html=True)
 
 with c2:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-label">Mejor precisión</div>
-        <div class="metric-value">{best_row['Mejor Precisión']:.1%}</div>
-        <div class="metric-delta">{best_row['Ticker']} · {best_row['Mejor Modelo']}</div>
+        <div class="metric-label">Señal más segura</div>
+        <div class="metric-value">{high_conf} / {len(signals_df)}</div>
+        <div class="metric-delta">Con confianza moderada o fuerte</div>
     </div>""", unsafe_allow_html=True)
 
 with c3:
-    avg_acc = summary_df["Mejor Precisión"].mean()
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">Predicen subida</div>
+        <div class="metric-value">{bullish} / {len(signals_df)}</div>
+        <div class="metric-delta">El resto predice bajada o sin cambio</div>
+    </div>""", unsafe_allow_html=True)
+
+with c4:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">Precisión promedio</div>
         <div class="metric-value">{avg_acc:.1%}</div>
-        <div class="metric-delta">sobre {len(processed)} tickers</div>
-    </div>""", unsafe_allow_html=True)
-
-with c4:
-    bullish = (signals_df["Código"] == 2).sum()
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Señales alcistas hoy</div>
-        <div class="metric-value">{bullish} / {len(signals_df)}</div>
-        <div class="metric-delta">Modelo KNN entrenado con 100% de datos</div>
+        <div class="metric-delta">Histórica · sobre datos de prueba</div>
     </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -322,108 +399,156 @@ st.markdown("<br>", unsafe_allow_html=True)
 # TABS
 # =========================================================
 tab1, tab2, tab3, tab4 = st.tabs([
-    "🎯 Señales del Día",
-    "📊 Análisis Individual",
-    "🏆 Comparación de Modelos",
-    "ℹ️ Acerca de",
+    "🎯 Señales del día",
+    "📊 Ver una acción en detalle",
+    "🧠 ¿Qué tan confiable es?",
+    "📖 Aprende los conceptos",
 ])
 
 
 # ---------------- TAB 1: SEÑALES ----------------
 with tab1:
-    st.markdown('<div class="section-title">Predicciones más recientes (basadas en la última vela disponible)</div>', unsafe_allow_html=True)
-    st.caption("El modelo KNN se entrena con el 100% del histórico y predice qué pasará en los próximos 3 días: subida >1%, caída >1%, o movimiento lateral.")
+    st.markdown('<div class="section-title">Predicciones de hoy explicadas de forma simple</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="info-box">
+        💡 <b>¿Qué estás viendo?</b> Para cada acción, la inteligencia artificial analizó 5 años
+        de datos históricos y predice qué podría pasar mañana. Ordenamos las señales
+        desde la más segura hasta la menos segura.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
-        badge_class = badge_map[row["Código"]]
-        col_left, col_right = st.columns([3, 1])
-        with col_left:
-            st.markdown(f"""
-            <div style="background: rgba(30,41,59,0.55); border:1px solid rgba(148,163,184,0.15);
-                        border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 0.6rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <span style="font-size:1.3rem; font-weight:700; color:#f1f5f9;">{row['Ticker']}</span>
-                        <span style="color:#94a3b8; margin-left: 0.8rem; font-size:0.9rem;">
-                            Precio: ${row['Precio actual']:.2f}
-                        </span>
-                    </div>
-                    <span class="badge {badge_class}">{row['Señal']}</span>
+        t = row["Ticker"]
+        conf = row["Confianza"]
+        conf_text, conf_color, conf_emoji = confidence_label(conf)
+
+        if row["Señal"] == 2:
+            badge_class = "badge-bull"
+            badge_text = "🟢 SUBIDA esperada"
+            card_class = "bull"
+            explain = "El sistema anticipa que el precio subirá más de 1%."
+        elif row["Señal"] == 1:
+            badge_class = "badge-bear"
+            badge_text = "🔴 BAJADA esperada"
+            card_class = "bear"
+            explain = "El sistema anticipa que el precio bajará más de 1%."
+        else:
+            badge_class = "badge-lat"
+            badge_text = "⚪ SIN CAMBIO esperado"
+            card_class = "lat"
+            explain = "El sistema anticipa que el precio se moverá poco (menos de 1%)."
+
+        company = COMPANY_NAMES.get(t, t)
+
+        st.markdown(f"""
+        <div class="signal-card {card_class}">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                <div>
+                    <div class="signal-ticker">{t} <span style="font-weight:500; color:#94a3b8; font-size:1rem;">· {company}</span></div>
+                    <div class="signal-price">Precio actual: ${row['Precio actual']:.2f}</div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="signal-badge {badge_class}">{badge_text}</span>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_right:
-            st.markdown(f"""
-            <div style="background: rgba(30,41,59,0.55); border:1px solid rgba(148,163,184,0.15);
-                        border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 0.6rem;
-                        text-align:center;">
-                <div style="color:#94a3b8; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px;">Confianza</div>
-                <div style="color:#f1f5f9; font-size:1.4rem; font-weight:700;">{row['Confianza']:.1%}</div>
+            <div class="signal-explain">{explain}</div>
+            <div class="conf-bar-wrap">
+                <span style="color:{conf_color}; font-size:0.85rem; font-weight:600; white-space:nowrap;">
+                    {conf_emoji} {conf_text}
+                </span>
+                <div class="conf-bar-bg">
+                    <div class="conf-bar-fill" style="width:{conf*100:.0f}%; background:{conf_color};"></div>
+                </div>
+                <span style="color:#94a3b8; font-size:0.8rem; min-width:3rem; text-align:right;">{conf:.0%}</span>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
 
 
-# ---------------- TAB 2: ANÁLISIS INDIVIDUAL ----------------
+# ---------------- TAB 2: DETALLE ----------------
 with tab2:
-    ticker_sel = st.selectbox("Selecciona una acción para análisis detallado", list(processed.keys()))
+    st.markdown('<div class="section-title">Elige una acción para ver su historia completa</div>', unsafe_allow_html=True)
+
+    ticker_sel = st.selectbox(
+        "Acción:",
+        list(processed.keys()),
+        format_func=lambda t: f"{t} — {COMPANY_NAMES.get(t, t)}",
+    )
     df_sel = processed[ticker_sel]
 
-    # Gráfico de precio + medias
-    st.markdown(f'<div class="section-title">📈 {ticker_sel} — Precio y Medias Móviles</div>', unsafe_allow_html=True)
+    # Precio + Medias
+    st.markdown(f'<div class="section-title">📈 Evolución del precio ({ticker_sel})</div>', unsafe_allow_html=True)
+    st.caption("Cada línea de color es un promedio del precio, útil para ver la tendencia general.")
 
     fig_price = go.Figure()
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["Close"], name="Cierre",
+    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["Close"], name="Precio real",
                                    line=dict(color="#22d3ee", width=2)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_40"], name="SMA 40",
+    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_40"], name="Tendencia corta (40 días)",
                                    line=dict(color="#facc15", width=1.3)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_80"], name="SMA 80",
+    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_80"], name="Tendencia media (80 días)",
                                    line=dict(color="#a855f7", width=1.3)))
-    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_160"], name="SMA 160",
+    fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["SMA_160"], name="Tendencia larga (160 días)",
                                    line=dict(color="#f43f5e", width=1.3)))
     fig_price.update_layout(
         template="plotly_dark", height=420,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=20, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis_title="Precio (USD)",
     )
     st.plotly_chart(fig_price, use_container_width=True)
 
-    # RSI
     col_a, col_b = st.columns(2)
+
     with col_a:
-        st.markdown(f'<div class="section-title">RSI (14)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🌡️ Termómetro de compra/venta (RSI)</div>', unsafe_allow_html=True)
+        st.caption("Arriba de 70 = la acción está muy cara (posible bajada). Abajo de 30 = muy barata (posible subida).")
         fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df_sel.index, y=df_sel["RSI"], line=dict(color="#22d3ee")))
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="#f87171")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="#34d399")
+        fig_rsi.add_trace(go.Scatter(x=df_sel.index, y=df_sel["RSI"],
+                                     line=dict(color="#22d3ee", width=1.8), name="RSI"))
+        fig_rsi.add_hline(y=70, line_dash="dash", line_color="#f87171",
+                          annotation_text="Caro", annotation_position="right")
+        fig_rsi.add_hline(y=30, line_dash="dash", line_color="#34d399",
+                          annotation_text="Barato", annotation_position="right")
         fig_rsi.update_layout(template="plotly_dark", height=300,
                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                              margin=dict(l=10, r=10, t=20, b=10))
+                              margin=dict(l=10, r=10, t=20, b=10),
+                              yaxis=dict(range=[0, 100]))
         st.plotly_chart(fig_rsi, use_container_width=True)
 
     with col_b:
-        st.markdown(f'<div class="section-title">Distribución de Señales (Target)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">📊 Frecuencia histórica de cada resultado</div>', unsafe_allow_html=True)
+        st.caption("De todas las veces que analizamos esta acción, ¿cuántas subió, bajó o se mantuvo?")
         dist = df_sel["Target"].value_counts(normalize=True).sort_index()
-        labels = [label_map[i] for i in dist.index]
-        colors = [color_map[i] for i in dist.index]
+        label_map_short = {2: "🟢 Subió", 1: "🔴 Bajó", 0: "⚪ Sin cambio"}
+        labels = [label_map_short[i] for i in dist.index]
+        colors = ["#34d399" if i == 2 else "#f87171" if i == 1 else "#cbd5e1" for i in dist.index]
         fig_dist = go.Figure(go.Bar(x=labels, y=dist.values, marker_color=colors,
-                                    text=[f"{v:.1%}" for v in dist.values],
+                                    text=[f"{v:.0%}" for v in dist.values],
                                     textposition="outside"))
         fig_dist.update_layout(template="plotly_dark", height=300,
                                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                                margin=dict(l=10, r=10, t=20, b=10),
-                               yaxis=dict(tickformat=".0%"))
+                               yaxis=dict(tickformat=".0%", range=[0, max(dist.values) * 1.2]))
         st.plotly_chart(fig_dist, use_container_width=True)
 
-    # Importancia de features
-    st.markdown(f'<div class="section-title">🎯 Importancia de Indicadores (XGBoost)</div>', unsafe_allow_html=True)
-    X_s = df_sel[features]; y_s = df_sel["Target"]
-    xgb_s = XGBClassifier(n_estimators=n_estimators, max_depth=3, learning_rate=0.05,
-                          random_state=42, verbosity=0, use_label_encoder=False,
-                          eval_metric="mlogloss").fit(X_s, y_s)
-    imp = pd.Series(xgb_s.feature_importances_, index=features).sort_values()
+    # Importancias
+    st.markdown('<div class="section-title">🎯 ¿Qué indicadores pesaron más en la decisión?</div>', unsafe_allow_html=True)
+    st.caption("Mientras más larga la barra, más importante fue ese indicador para el modelo.")
+    imp = pd.Series(importances[ticker_sel]).sort_values()
+    nice_names = {
+        "RSI": "RSI (termómetro compra/venta)",
+        "Relative_Range": "Volatilidad diaria",
+        "Slope_SMA_40": "Tendencia corta",
+        "Slope_SMA_80": "Tendencia media",
+        "Slope_SMA_160": "Tendencia larga",
+    }
+    imp.index = [nice_names.get(i, i) for i in imp.index]
     fig_imp = px.bar(x=imp.values, y=imp.index, orientation="h",
-                     labels={"x": "Importancia", "y": "Indicador"})
+                     labels={"x": "Importancia", "y": ""})
     fig_imp.update_traces(marker_color="#3b82f6")
     fig_imp.update_layout(template="plotly_dark", height=320,
                           paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -431,26 +556,41 @@ with tab2:
     st.plotly_chart(fig_imp, use_container_width=True)
 
 
-# ---------------- TAB 3: COMPARACIÓN ----------------
+# ---------------- TAB 3: CONFIABILIDAD ----------------
 with tab3:
-    st.markdown('<div class="section-title">🏆 Comparación de rendimiento por acción</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🧠 ¿Qué tan buenos son estos modelos?</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="info-box">
+        <b>Para entender los números:</b> Imagina que el modelo mira 100 días del pasado y trata
+        de adivinar qué pasó. Si acierta 45 veces, su precisión es 45%.<br><br>
+        🔸 <b>Clase Mayoritaria (baseline):</b> Es lo que acertarías si SIEMPRE dijeses "sube" sin pensar.
+        Es el rival más tonto y hay que superarlo para que la IA sirva de algo.<br>
+        🔸 <b>KNN:</b> Busca días parecidos en el pasado y copia lo que pasó.<br>
+        🔸 <b>XGBoost:</b> Construye reglas tipo "si pasa A y B, entonces C".
+    </div>
+    """, unsafe_allow_html=True)
 
     display_df = summary_df.copy()
     display_df["Clase Mayoritaria"] = display_df["Clase Mayoritaria"].apply(lambda x: f"{x:.2%}")
     display_df["KNN"] = display_df["KNN"].apply(lambda x: f"{x:.2%}")
     display_df["XGBoost"] = display_df["XGBoost"].apply(lambda x: f"{x:.2%}")
     display_df["Mejor Precisión"] = display_df["Mejor Precisión"].apply(lambda x: f"{x:.2%}")
+    display_df = display_df.rename(columns={
+        "Clase Mayoritaria": "Baseline (tonto)",
+        "Mejor Precisión": "Mejor del modelo",
+    })
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    # Gráfico comparativo
+    st.markdown('<div class="section-title">📊 Comparación visual</div>', unsafe_allow_html=True)
     fig_cmp = go.Figure()
     fig_cmp.add_trace(go.Bar(name="KNN", x=summary_df["Ticker"], y=summary_df["KNN"],
                              marker_color="#3b82f6"))
     fig_cmp.add_trace(go.Bar(name="XGBoost", x=summary_df["Ticker"], y=summary_df["XGBoost"],
                              marker_color="#a855f7"))
-    fig_cmp.add_trace(go.Scatter(name="Baseline (clase mayoritaria)",
+    fig_cmp.add_trace(go.Scatter(name="Baseline (tonto)",
                                  x=summary_df["Ticker"], y=summary_df["Clase Mayoritaria"],
-                                 mode="lines+markers", line=dict(color="#fbbf24", dash="dash")))
+                                 mode="lines+markers", line=dict(color="#fbbf24", dash="dash", width=2)))
     fig_cmp.update_layout(
         barmode="group", template="plotly_dark", height=420,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -461,37 +601,55 @@ with tab3:
     st.plotly_chart(fig_cmp, use_container_width=True)
 
 
-# ---------------- TAB 4: ACERCA DE ----------------
+# ---------------- TAB 4: APRENDE ----------------
 with tab4:
-    st.markdown('<div class="section-title">ℹ️ ¿Cómo funciona esta herramienta?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📖 Glosario sencillo</div>', unsafe_allow_html=True)
     st.markdown("""
-    Esta app entrena **dos modelos de Machine Learning** para predecir si una acción
-    subirá, bajará o se mantendrá lateral en los próximos **3 días**.
+    ### 🏢 ¿Qué es una acción?
+    Es una pequeña parte de una empresa. Si compras una acción de NVIDIA, eres dueño de un
+    pedacito de NVIDIA. Su precio sube cuando a la gente le va bien con la empresa y baja cuando
+    hay malas noticias.
 
-    ### 🧠 Indicadores utilizados como features
-    - **Slope SMA 40, 80, 160:** pendientes de medias móviles (tendencia).
-    - **RSI (14):** índice de fuerza relativa (sobrecompra/sobreventa).
-    - **Relative Range:** rango relativo diario (volatilidad).
+    ### 📈 ¿Qué significa "subida esperada"?
+    El sistema predice que el precio de esa acción subirá **más de 1%** en el próximo día hábil.
+    Por ejemplo: si cuesta $100, subiría al menos a $101.
 
-    ### 🎯 Etiquetas del Target
-    - 🟢 **ALCISTA:** retorno a 3 días > +1%
-    - 🔴 **BAJISTA:** retorno a 3 días < −1%
-    - ⚪ **LATERAL:** cualquier otro caso
+    ### 📉 ¿Qué significa "bajada esperada"?
+    El sistema predice que el precio bajará **más de 1%**. De $100 pasaría a $99 o menos.
 
-    ### 🤖 Modelos
-    - **KNN (K-Nearest Neighbors):** clasifica según los vecinos más cercanos en el espacio de features.
-    - **XGBoost:** árboles de decisión con boosting, muy potente en datos tabulares.
+    ### ⚪ ¿Qué significa "sin cambio"?
+    El sistema cree que el precio se moverá **menos de 1%**, ni arriba ni abajo de forma clara.
 
-    ### 📏 Referencias de comparación
-    - **Clase Mayoritaria:** siempre predecir la clase más frecuente (baseline tonto).
-    - Si el modelo **no supera claramente** al baseline, la señal tiene poco valor predictivo.
+    ### 🎯 ¿Qué es la "confianza"?
+    Es qué tan seguro está el modelo. Una confianza de 40% significa que el modelo no está muy
+    seguro. **Ojo: confianza alta no garantiza que acierte.** En bolsa nunca hay garantías.
+
+    ### 🧠 ¿Qué es KNN?
+    Imagina que tienes 5 años de historia del mercado. El modelo busca los 50 días más parecidos
+    al día de hoy y mira qué pasó después. Si la mayoría subió, predice subida.
+
+    ### 🌳 ¿Qué es XGBoost?
+    Es un modelo que crea cientos de reglas tipo:
+    *"Si el RSI es mayor a 70 Y la tendencia es bajista, entonces probablemente baje."*
+    Combina muchas reglas simples para hacer una predicción más robusta.
+
+    ### 🎚️ ¿Qué es el RSI?
+    Es un número entre 0 y 100 que mide si una acción está "cara" o "barata":
+    - **Arriba de 70:** Mucha gente la está comprando → puede bajar pronto.
+    - **Abajo de 30:** Mucha gente la está vendiendo → puede subir pronto.
+
+    ### 📏 ¿Qué son las medias móviles (SMA)?
+    Es el precio promedio de los últimos N días. Sirven para ver la tendencia general:
+    - Si el precio está **arriba** de la media → tendencia alcista.
+    - Si está **abajo** → tendencia bajista.
     """)
 
     st.markdown("""
     <div class="disclaimer">
         ⚠️ <b>Aviso importante:</b> Esta herramienta es un proyecto educativo y de investigación.
-        <b>NO es asesoría financiera.</b> Los mercados son impredecibles y los modelos de ML
-        pueden fallar. Nunca tomes decisiones de inversión basándote únicamente en esta app.
+        <b>NO es asesoría financiera.</b> Los mercados son impredecibles y los modelos de inteligencia
+        artificial pueden equivocarse. Nunca tomes decisiones de inversión basándote únicamente en esta app.
+        Consulta siempre a un profesional certificado.
     </div>
     """, unsafe_allow_html=True)
 
