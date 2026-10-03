@@ -23,7 +23,6 @@ st.set_page_config(
 # HELPER: render HTML de forma robusta
 # =========================================================
 def render_html(html_str):
-    """Usa st.html() (no pasa por markdown) con fallback a st.markdown."""
     try:
         st.html(html_str)
     except AttributeError:
@@ -89,11 +88,11 @@ def format_spanish_date(dt, short=False):
 
 def confidence_label(pct):
     if pct >= 0.50:
-        return "Alta convicción", C_BULL, "high"
+        return "Probabilidad alta", C_BULL, "high"
     elif pct >= 0.45:
-        return "Convicción media", C_GOLD, "mid"
+        return "Probabilidad media", C_GOLD, "mid"
     else:
-        return "Convicción baja", C_BEAR, "low"
+        return "Probabilidad baja", C_BEAR, "low"
 
 
 # =========================================================
@@ -229,6 +228,7 @@ st.markdown("""
         color: #57534e !important; font-size: 0.95rem;
         line-height: 1.55; margin: 0 0 2rem 0; max-width: 720px;
     }
+    .section-desc strong { color: #14110f !important; font-weight: 700; }
 
     /* CALLOUT */
     .callout {
@@ -265,8 +265,10 @@ st.markdown("""
         color: #14110f !important; font-variant-numeric: tabular-nums;
     }
     .sr-price-label {
-        font-size: 0.68rem; letter-spacing: 0.16em;
-        text-transform: uppercase; color: #78716c !important; margin-top: 0.15rem;
+        font-size: 0.68rem; letter-spacing: 0.1em;
+        color: #78716c !important; margin-top: 0.15rem;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums;
     }
     .sr-signal-main {
         font-weight: 600; font-size: 0.95rem; color: #14110f !important;
@@ -276,7 +278,9 @@ st.markdown("""
     .sr-arrow.bear { color: #dc2626 !important; }
     .sr-arrow.lat  { color: #64748b !important; }
     .sr-signal-sub {
-        font-size: 0.72rem; color: #78716c !important; margin-top: 0.15rem;
+        font-size: 0.68rem; color: #78716c !important; margin-top: 0.15rem;
+        font-family: 'JetBrains Mono', monospace !important;
+        letter-spacing: 0.05em;
     }
 
     .sr-dist-bar { display: flex; height: 6px; overflow: hidden; background: #e7e5e0; }
@@ -303,10 +307,8 @@ st.markdown("""
         font-size: 0.68rem; letter-spacing: 0.14em;
         text-transform: uppercase; font-weight: 700;
         text-align: right; margin-top: 0.15rem;
+        color: #14110f !important;
     }
-    .sr-conf-lbl.high { color: #16a34a !important; }
-    .sr-conf-lbl.mid  { color: #c99a3a !important; }
-    .sr-conf-lbl.low  { color: #dc2626 !important; }
 
     /* TERMÓMETRO */
     .thermo {
@@ -384,7 +386,7 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    div[data-testid="stSelectbox"] div[data-baseweb="select"] * ,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] *,
     div[data-testid="stSelectbox"] div[role="button"] * {
         color: #14110f !important;
         background-color: transparent !important;
@@ -395,7 +397,6 @@ st.markdown("""
         fill: #14110f !important;
     }
 
-    /* Dropdown del selectbox */
     div[data-baseweb="popover"],
     div[data-baseweb="popover"] > div,
     ul[data-baseweb="menu"],
@@ -525,6 +526,7 @@ def compute_everything():
             "P_bajada": prob_dict.get(1, 0.0),
             "P_sin_cambio": prob_dict.get(0, 0.0),
             "Precio": float(df["Close"].iloc[-1]),
+            "CloseDate": df["Close"].index[-1],
         })
 
         last_close = float(df["Close"].iloc[-1])
@@ -869,28 +871,49 @@ st.plotly_chart(fig_imp, use_container_width=True)
 
 
 # =========================================================
-# SECCIÓN 3 — SEÑALES
+# SECCIÓN 3 — PRONÓSTICO PERSONALIZADO
 # =========================================================
-render_html('''
+sel_row = signals_df[signals_df["Ticker"] == ticker_sel].iloc[0]
+sel_conf = sel_row["Confianza"]
+sel_signal = int(sel_row["Señal"])
+sel_company = COMPANY_NAMES.get(ticker_sel, ticker_sel)
+sel_conf_text, _, _ = confidence_label(sel_conf)
+
+sel_p_sub = sel_row["P_subida"] * 100
+sel_p_baj = sel_row["P_bajada"] * 100
+sel_p_lat = sel_row["P_sin_cambio"] * 100
+
+if sel_signal == 2:
+    pred_verb = "una <strong>subida mayor al 1%</strong>"
+elif sel_signal == 1:
+    pred_verb = "una <strong>bajada mayor al 1%</strong>"
+else:
+    pred_verb = "un <strong>movimiento lateral</strong> (sin cambio significativo)"
+
+forecast_str = format_spanish_date(forecast_day)
+
+render_html(f'''
 <div class="section">
-    <div class="section-kicker">Pronóstico</div>
-    <h2 class="section-title">Señal del modelo para el próximo día hábil</h2>
+    <div class="section-kicker">Pronóstico · {ticker_sel}</div>
+    <h2 class="section-title">Señal para el {forecast_str}</h2>
     <p class="section-desc">
-        Distribución de probabilidad asignada por el modelo a cada escenario.
-        Ordenada de mayor a menor convicción.
+        Para <strong>{ticker_sel}</strong> ({sel_company}), el modelo anticipa {pred_verb}
+        durante el próximo día hábil. La probabilidad asignada a este escenario es del
+        <strong>{sel_conf:.0%}</strong> ({sel_conf_text.lower()}). El detalle completo de
+        los tres escenarios posibles aparece en la tabla inferior.
     </p>
 </div>
 ''')
 
 render_html('''
 <div class="callout">
-    <strong>Nota.</strong> Una confianza del 45% no significa certeza.
+    <strong>Nota.</strong> Una probabilidad del 45% no significa certeza.
     El modelo reparte el 100% de probabilidad entre tres escenarios posibles:
     subida mayor a 1%, bajada mayor a 1%, o movimiento lateral.
 </div>
 ''')
 
-# --- Header ---
+# --- Header de la tabla ---
 render_html(
     '<div class="signal-table">'
     '<div class="signal-header">'
@@ -898,12 +921,12 @@ render_html(
     '<span>Cierre</span>'
     '<span>Señal</span>'
     '<span>Distribución</span>'
-    '<span style="text-align:right;">Convicción</span>'
+    '<span style="text-align:right;">Probabilidad</span>'
     '</div>'
     '</div>'
 )
 
-# --- Filas (una sola línea, sin indentación) ---
+# --- Filas ---
 rows_html = ""
 for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
     t = row["Ticker"]
@@ -920,7 +943,10 @@ for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
     else:
         arrow, arrow_class, label = "—", "lat", "Sin cambio esperado"
 
-    conf_text, conf_color, conf_class = confidence_label(conf)
+    conf_text, _, _ = confidence_label(conf)
+
+    close_date_str = row["CloseDate"].strftime("%d · %m · %Y")
+    forecast_date_str = forecast_day.strftime("%d · %m · %Y")
 
     rows_html += (
         f'<div class="signal-row">'
@@ -930,11 +956,11 @@ for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
         f'</div>'
         f'<div>'
         f'<div class="sr-price">${row["Precio"]:.2f}</div>'
-        f'<div class="sr-price-label">USD</div>'
+        f'<div class="sr-price-label">{close_date_str}</div>'
         f'</div>'
         f'<div>'
         f'<div class="sr-signal-main"><span class="sr-arrow {arrow_class}">{arrow}</span>{label}</div>'
-        f'<div class="sr-signal-sub">Próximo día hábil</div>'
+        f'<div class="sr-signal-sub">Válida para {forecast_date_str}</div>'
         f'</div>'
         f'<div>'
         f'<div class="sr-dist-bar">'
@@ -950,7 +976,7 @@ for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
         f'</div>'
         f'<div>'
         f'<div class="sr-conf-val">{conf:.0%}</div>'
-        f'<div class="sr-conf-lbl {conf_class}">{conf_text}</div>'
+        f'<div class="sr-conf-lbl">{conf_text}</div>'
         f'</div>'
         f'</div>'
     )
@@ -959,26 +985,26 @@ render_html(f'<div class="signal-table" style="border-top:none;">{rows_html}</di
 
 
 # =========================================================
-# SECCIÓN 4 — CONVICCIÓN EXPLICADA
+# SECCIÓN 4 — CÓMO INTERPRETAR LA PROBABILIDAD
 # =========================================================
 render_html('''
 <div class="section">
     <div class="section-kicker">Lectura de la señal</div>
-    <h2 class="section-title">Cómo interpretar la convicción</h2>
+    <h2 class="section-title">Cómo interpretar la probabilidad</h2>
     <p class="section-desc">
-        La convicción es la probabilidad que el modelo asigna al escenario ganador.
-        Los mercados son ruidosos: incluso una convicción alta puede fallar.
+        La probabilidad indica qué tan seguro está el modelo del escenario ganador.
+        Los mercados son ruidosos: incluso una probabilidad alta puede fallar.
     </p>
 </div>
 ''')
 
 render_html('''
 <div class="callout">
-    <strong>· Alta convicción (≥ 50%)</strong> — Señal sólida. El modelo tiene un favorito claro
+    <strong>· Probabilidad alta (≥ 50%)</strong> — Señal sólida. El modelo tiene un favorito claro
     entre los tres escenarios. Es el rango donde el pronóstico merece más atención.<br><br>
-    <strong>· Convicción media (45% – 50%)</strong> — Buena señal, con riesgo presente.
+    <strong>· Probabilidad media (45% – 50%)</strong> — Buena señal, con riesgo presente.
     El escenario ganador se impone, pero los otros dos siguen siendo plausibles.<br><br>
-    <strong>· Convicción baja (&lt; 45%)</strong> — Señal moderada, riesgo elevado. La probabilidad
+    <strong>· Probabilidad baja (&lt; 45%)</strong> — Señal moderada, riesgo elevado. La probabilidad
     está repartida y el modelo no encuentra un patrón dominante. Trátese como referencia, no como guía.
 </div>
 ''')
