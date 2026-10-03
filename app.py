@@ -10,11 +10,11 @@ from sklearn.metrics import accuracy_score
 from datetime import datetime, timedelta
 
 # =========================================================
-# CONFIGURACIÓN DE PÁGINA
+# CONFIGURACIÓN
 # =========================================================
 st.set_page_config(
-    page_title="Stock Signal AI",
-    page_icon="📈",
+    page_title="Stock Signal",
+    page_icon="◼",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -35,19 +35,13 @@ FEATURES = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Ra
 
 COMPANY_NAMES = {
     "NVDA": "NVIDIA", "MU": "Micron", "AMD": "AMD", "INTC": "Intel",
-    "AVGO": "Broadcom", "GOOG": "Google", "META": "Meta",
+    "AVGO": "Broadcom", "GOOG": "Alphabet", "META": "Meta",
     "MSFT": "Microsoft", "ORCL": "Oracle",
 }
 
-# Colores estilo Finviz (7 paradas de -3% a +3%)
 FINVIZ_COLORS = [
-    "#FF2C2C",  # -3%
-    "#B03A3A",  # -2%
-    "#5E2E2E",  # -1%
-    "#4B5563",  #  0%
-    "#235E34",  # +1%
-    "#1A9C42",  # +2%
-    "#1DD14F",  # +3%
+    "#FF2C2C", "#B03A3A", "#5E2E2E", "#4B5563",
+    "#235E34", "#1A9C42", "#1DD14F",
 ]
 
 # =========================================================
@@ -62,152 +56,418 @@ def next_business_day(from_date=None):
     return d
 
 
-def format_spanish_date(dt):
+def format_spanish_date(dt, short=False):
     days = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     months = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
               "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    if short:
+        return f"{days[dt.weekday()]} {dt.day} · {months[dt.month-1][:3]}"
     return f"{days[dt.weekday()]} {dt.day} de {months[dt.month - 1]} de {dt.year}"
 
 
-def confidence_label(pct):
-    if pct >= 0.60:
-        return "Señal fuerte", "#059669", "💪"
-    elif pct >= 0.45:
-        return "Señal moderada", "#d97706", "⚡"
-    else:
-        return "Señal débil", "#dc2626", "⚠️"
+def confidence_level(pct):
+    if pct >= 0.60: return "Fuerte"
+    if pct >= 0.45: return "Moderada"
+    return "Débil"
 
 
 # =========================================================
-# CSS — TEMA CLARO
+# CSS — DISEÑO EDITORIAL EJECUTIVO
 # =========================================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-    .stApp {
-        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    :root {
+        --paper: #faf9f6;
+        --surface: #ffffff;
+        --ink: #14110f;
+        --ink-2: #57534e;
+        --ink-3: #a8a29e;
+        --hairline: #e7e5e0;
+        --hairline-2: #d6d3cc;
+        --accent: #0f2a4a;
+        --bull: #0f7a3e;
+        --bear: #b91c1c;
+        --neutral: #6b7280;
+        --gold: #8a6a2b;
     }
 
-    /* Texto base oscuro */
-    h1, h2, h3, h4, h5, h6, p, span, div, label { color: #0f172a; }
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: var(--ink);
+        font-feature-settings: "tnum", "cv11";
+    }
 
+    .stApp { background: var(--paper); }
+
+    .block-container {
+        max-width: 1240px;
+        padding-top: 2.5rem;
+        padding-bottom: 4rem;
+    }
+
+    /* Ocultar elementos de Streamlit que restan sofisticación */
+    header[data-testid="stHeader"] { background: transparent; }
+    #MainMenu, footer { visibility: hidden; }
+
+    /* ============ MASTHEAD ============ */
+    .masthead {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 0 0 1rem 0;
+        border-bottom: 1px solid var(--ink);
+        margin-bottom: 2.5rem;
+    }
+    .masthead-brand {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        color: var(--ink);
+    }
+    .masthead-date {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+    }
+
+    /* ============ HERO ============ */
+    .hero { margin-bottom: 2.5rem; }
+    .kicker {
+        font-size: 0.72rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
     .hero-title {
-        font-size: 3rem; font-weight: 800;
-        background: linear-gradient(90deg, #0891b2, #2563eb, #7c3aed);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        text-align: center; margin: 0; letter-spacing: -1px;
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-size: 4rem;
+        line-height: 0.98;
+        font-weight: 400;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+        margin: 0 0 0.75rem 0;
     }
-    .hero-subtitle {
-        text-align: center; color: #64748b; font-size: 1rem;
-        margin-top: 0.3rem; margin-bottom: 1.5rem;
+    .hero-title em { font-style: italic; color: var(--ink-2); }
+    .hero-lede {
+        font-size: 1.05rem;
+        line-height: 1.55;
+        color: var(--ink-2);
+        max-width: 640px;
+        margin: 0;
     }
 
-    .date-banner {
-        background: linear-gradient(90deg, #e0f2fe, #ede9fe);
-        border: 1px solid #bae6fd;
-        border-radius: 16px; padding: 1.25rem 1.75rem;
-        text-align: center; margin-bottom: 2rem;
-        box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+    /* ============ DATELINE ============ */
+    .dateline {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2rem;
+        align-items: baseline;
+        padding: 1.1rem 0;
+        border-top: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--hairline);
+        margin-bottom: 2.5rem;
     }
-    .date-banner .label {
-        color: #0369a1; font-size: 0.85rem;
-        text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
+    .dateline-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        font-weight: 600;
+        white-space: nowrap;
     }
-    .date-banner .value {
-        color: #0f172a; font-size: 1.6rem; font-weight: 800; margin-top: 0.3rem;
+    .dateline-value {
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-size: 1.35rem;
+        color: var(--ink);
+        letter-spacing: -0.01em;
     }
-    .date-banner .sub { color: #475569; font-size: 0.9rem; margin-top: 0.4rem; }
+    .dateline-value .muted {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
+        color: var(--ink-2);
+        margin-left: 0.5rem;
+    }
 
-    .signal-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 18px; padding: 1.5rem 1.75rem;
-        margin-bottom: 1rem; position: relative; overflow: hidden;
-        box-shadow: 0 2px 10px rgba(15,23,42,0.05);
+    /* ============ SECCIÓN ============ */
+    .section-head { margin: 0 0 1.5rem 0; }
+    .section-kicker {
+        font-size: 0.7rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        font-weight: 600;
+        margin-bottom: 0.4rem;
     }
-    .signal-card.bull { border-left: 5px solid #10b981; }
-    .signal-card.bear { border-left: 5px solid #ef4444; }
-    .signal-card.lat  { border-left: 5px solid #94a3b8; }
+    .section-title {
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-size: 1.9rem;
+        font-weight: 400;
+        line-height: 1.1;
+        color: var(--ink);
+        letter-spacing: -0.015em;
+        margin: 0 0 0.35rem 0;
+    }
+    .section-desc {
+        color: var(--ink-2);
+        font-size: 0.92rem;
+        line-height: 1.5;
+        margin: 0;
+    }
 
-    .signal-ticker { font-size: 1.5rem; font-weight: 800; color: #0f172a; }
-    .signal-company { font-size: 0.85rem; color: #64748b; font-weight: 500; }
-    .signal-price { font-size: 1.1rem; color: #475569; font-weight: 600; }
-    .signal-badge {
-        display: inline-block; padding: 0.5rem 1.1rem; border-radius: 999px;
-        font-weight: 700; font-size: 0.95rem;
-    }
-    .badge-bull { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-    .badge-bear { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-    .badge-lat  { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
-
-    .prob-row {
-        display: flex; align-items: center; gap: 0.75rem; margin-top: 0.55rem;
-        font-size: 0.9rem;
-    }
-    .prob-label { color: #334155; width: 155px; font-weight: 500; }
-    .prob-bar-bg {
-        flex: 1; height: 10px; background: #e2e8f0;
-        border-radius: 999px; overflow: hidden;
-    }
-    .prob-bar-fill { height: 100%; border-radius: 999px; }
-    .prob-pct { color: #64748b; width: 55px; text-align: right; font-weight: 700; font-size: 0.85rem; }
-
+    /* ============ TABS ============ */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 6px; background: #f1f5f9;
-        padding: 6px; border-radius: 12px;
-        border: 1px solid #e2e8f0;
+        gap: 0;
+        background: transparent;
+        border-bottom: 1px solid var(--hairline);
+        padding: 0;
+        margin-bottom: 2rem;
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px; padding: 10px 18px;
-        font-weight: 600; color: #64748b;
+        background: transparent;
+        border-radius: 0;
+        padding: 0.85rem 0 0.85rem 0;
+        margin-right: 2rem;
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+        font-size: 0.92rem;
+        color: var(--ink-2);
+        border-bottom: 2px solid transparent;
+        transition: none;
     }
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(90deg, #0891b2, #2563eb);
-        color: white !important;
+        color: var(--ink) !important;
+        border-bottom: 2px solid var(--ink) !important;
+        background: transparent !important;
     }
-    .stTabs [aria-selected="true"] p { color: white !important; }
+    .stTabs [data-baseweb="tab"]:hover { color: var(--ink); }
+    .stTabs [data-baseweb="tab-highlight"] { display: none; }
+    .stTabs [data-baseweb="tab-border"] { display: none; }
 
-    .section-title {
-        color: #0f172a; font-size: 1.25rem; font-weight: 700;
-        margin-top: 1.5rem; margin-bottom: 0.75rem;
-        padding-left: 0.7rem; border-left: 4px solid #0891b2;
+    /* ============ SEÑALES (tabla editorial) ============ */
+    .signal-table {
+        background: var(--surface);
+        border: 1px solid var(--hairline);
     }
-    .info-box {
-        background: #eff6ff; border-left: 4px solid #3b82f6;
-        padding: 1rem 1.25rem; border-radius: 8px;
-        color: #1e3a8a; font-size: 0.92rem; margin-top: 1rem;
+    .signal-header {
+        display: grid;
+        grid-template-columns: 2.2fr 1.2fr 2fr 3fr 1.2fr;
+        gap: 1.5rem;
+        padding: 0.75rem 1.5rem;
+        border-bottom: 1px solid var(--ink);
+        background: var(--paper);
     }
-    .disclaimer {
-        background: #fffbeb; border-left: 4px solid #f59e0b;
-        padding: 1rem 1.25rem; border-radius: 8px;
-        color: #92400e; font-size: 0.88rem; margin-top: 2rem;
+    .signal-header span {
+        font-size: 0.68rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        font-weight: 600;
+    }
+    .signal-row {
+        display: grid;
+        grid-template-columns: 2.2fr 1.2fr 2fr 3fr 1.2fr;
+        gap: 1.5rem;
+        padding: 1.35rem 1.5rem;
+        border-bottom: 1px solid var(--hairline);
+        align-items: center;
+    }
+    .signal-row:last-child { border-bottom: none; }
+    .signal-row:hover { background: #fcfcfa; }
+
+    .sr-symbol {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: -0.005em;
+        color: var(--ink);
+    }
+    .sr-company {
+        font-size: 0.78rem;
+        color: var(--ink-3);
+        margin-top: 0.15rem;
     }
 
-    /* Termómetro */
-    .thermo-wrap {
-        margin-top: 0.8rem;
-        padding: 0.5rem 0.25rem 0.25rem 0.25rem;
+    .sr-price {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+    }
+    .sr-price-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        margin-top: 0.15rem;
+    }
+
+    .sr-signal-main {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+    .sr-arrow { font-size: 0.85rem; }
+    .sr-arrow.bull { color: var(--bull); }
+    .sr-arrow.bear { color: var(--bear); }
+    .sr-arrow.lat  { color: var(--neutral); }
+    .sr-signal-sub {
+        font-size: 0.72rem;
+        color: var(--ink-3);
+        margin-top: 0.15rem;
+    }
+
+    .sr-dist-bar {
+        display: flex;
+        height: 6px;
+        border-radius: 0;
+        overflow: hidden;
+        background: var(--hairline);
+    }
+    .sr-dist-seg { height: 100%; }
+    .sr-dist-seg.bull { background: var(--bull); }
+    .sr-dist-seg.bear { background: var(--bear); }
+    .sr-dist-seg.lat  { background: var(--neutral); }
+    .sr-dist-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.45rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        color: var(--ink-3);
+        font-variant-numeric: tabular-nums;
+    }
+    .sr-dist-labels span:nth-child(1) { color: var(--bull); }
+    .sr-dist-labels span:nth-child(2) { color: var(--bear); }
+
+    .sr-conf-val {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+    .sr-conf-lbl {
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        text-align: right;
+        margin-top: 0.15rem;
+    }
+
+    /* ============ TERMÓMETRO ============ */
+    .thermo {
+        margin-top: 2rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--hairline);
+    }
+    .thermo-head {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    .thermo-title {
+        font-size: 0.7rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        font-weight: 600;
+    }
+    .thermo-axis-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.7rem;
+        color: var(--ink-3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
     }
     .thermo-bar {
-        display: flex; height: 34px; border-radius: 6px; overflow: hidden;
-        border: 1px solid #cbd5e1;
-        box-shadow: 0 1px 3px rgba(15,23,42,0.06);
+        display: flex;
+        height: 26px;
+        border: 1px solid var(--hairline-2);
     }
     .thermo-seg {
-        flex: 1; display: flex; align-items: center; justify-content: center;
-        color: white; font-weight: 700; font-size: 0.85rem;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: #ffffff;
+        font-variant-numeric: tabular-nums;
     }
-    .thermo-labels {
-        display: flex; justify-content: space-between;
-        margin-top: 0.4rem; color: #64748b; font-size: 0.78rem; font-weight: 500;
+    .thermo-ticks {
+        display: flex;
+        margin-top: 0.4rem;
+    }
+    .thermo-tick {
+        flex: 1;
+        text-align: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        color: var(--ink-3);
+        font-variant-numeric: tabular-nums;
     }
 
-    /* Footer limpio */
-    .footer-note {
-        color: #64748b; font-size: 0.8rem; text-align: center;
-        padding: 1rem 0 2rem 0;
+    /* ============ CALLOUT ============ */
+    .callout {
+        border-left: 2px solid var(--ink);
+        padding: 0.25rem 0 0.25rem 1.25rem;
+        margin: 1.5rem 0 2rem 0;
+        color: var(--ink-2);
+        font-size: 0.92rem;
+        line-height: 1.55;
+    }
+    .callout strong { color: var(--ink); font-weight: 600; }
+
+    /* ============ DATAFRAME ============ */
+    .stDataFrame { border: 1px solid var(--hairline); }
+    [data-testid="stDataFrame"] thead tr th {
+        background: var(--paper) !important;
+        font-size: 0.7rem !important;
+        letter-spacing: 0.14em !important;
+        text-transform: uppercase !important;
+        color: var(--ink-3) !important;
+        font-weight: 600 !important;
+        border-bottom: 1px solid var(--ink) !important;
+    }
+    [data-testid="stDataFrame"] tbody tr td {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.82rem !important;
+        font-variant-numeric: tabular-nums !important;
+        border-bottom: 1px solid var(--hairline) !important;
+    }
+
+    /* ============ FOOTER ============ */
+    .footer {
+        margin-top: 4rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--hairline);
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.72rem;
+        color: var(--ink-3);
+        letter-spacing: 0.05em;
+    }
+    .footer-disclaimer {
+        font-style: italic;
+        max-width: 640px;
+        line-height: 1.55;
+        color: var(--ink-3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -286,11 +546,11 @@ def compute_everything():
 
         results_rows.append({
             "Ticker": t,
-            "Clase Mayoritaria": majority,
+            "Baseline": majority,
             "KNN": acc_knn,
             "XGBoost": acc_xgb,
-            "Mejor Modelo": "KNN" if acc_knn >= acc_xgb else "XGBoost",
-            "Mejor Precisión": max(acc_knn, acc_xgb),
+            "Mejor": "KNN" if acc_knn >= acc_xgb else "XGBoost",
+            "MejorPrecision": max(acc_knn, acc_xgb),
         })
 
         knn_all = KNeighborsClassifier(n_neighbors=K_NEIGHBORS).fit(X, y)
@@ -306,7 +566,7 @@ def compute_everything():
             "P_subida": prob_dict.get(2, 0.0),
             "P_bajada": prob_dict.get(1, 0.0),
             "P_sin_cambio": prob_dict.get(0, 0.0),
-            "Precio actual": float(df["Close"].iloc[-1]),
+            "Precio": float(df["Close"].iloc[-1]),
         })
 
         last_close = float(df["Close"].iloc[-1])
@@ -334,62 +594,83 @@ def compute_everything():
 
 
 # =========================================================
-# HERO + FECHA
+# MASTHEAD
 # =========================================================
-st.markdown('<h1 class="hero-title">📈 Stock Signal AI</h1>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="hero-subtitle">Inteligencia artificial que analiza acciones y predice hacia dónde irán</p>',
-    unsafe_allow_html=True,
-)
-
 forecast_day = next_business_day()
 today = datetime.now()
 
 st.markdown(f"""
-<div class="date-banner">
-    <div class="label">🗓️ Pronóstico para el próximo día hábil bursátil</div>
-    <div class="value">{format_spanish_date(forecast_day).capitalize()}</div>
-    <div class="sub">Hoy es {format_spanish_date(today)}. Este análisis predice qué pasará
-    en la próxima jornada en que abran los mercados.</div>
+<div class="masthead">
+    <div class="masthead-brand">Stock Signal · Análisis de mercado</div>
+    <div class="masthead-date">{today.strftime('%d · %m · %Y')} — Edición diaria</div>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# HERO
+# =========================================================
+st.markdown(f"""
+<div class="hero">
+    <div class="kicker">Informe de inteligencia de mercado</div>
+    <h1 class="hero-title">Nueve acciones.<br><em>Una señal por acción.</em></h1>
+    <p class="hero-lede">
+        Análisis técnico asistido por inteligencia artificial sobre las principales
+        compañías de semiconductores y software. Cada predicción se construye con
+        cinco años de historia bursátil y dos modelos independientes.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# DATELINE
+# =========================================================
+st.markdown(f"""
+<div class="dateline">
+    <div class="dateline-label">Próximo día hábil</div>
+    <div class="dateline-value">
+        {format_spanish_date(forecast_day).capitalize()}
+        <span class="muted">· hoy es {format_spanish_date(today)}</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
 # =========================================================
 # CARGA
 # =========================================================
-with st.spinner("🔄 Analizando el mercado... esto toma ~30 segundos la primera vez."):
+with st.spinner("Procesando 5 años de datos de mercado…"):
     try:
         processed, summary_df, signals_df, heat_df, importances = compute_everything()
     except Exception as e:
-        st.error(f"⚠️ No se pudieron obtener los datos: {e}")
+        st.error(f"No se pudieron obtener los datos: {e}")
         st.stop()
 
 if not processed:
-    st.error("No se pudieron obtener datos. Intenta recargar la página.")
+    st.error("No se pudieron obtener datos. Recarga la página.")
     st.stop()
 
 # =========================================================
 # TABS
 # =========================================================
-tab1, tab2, tab3 = st.tabs([
-    "🔥 Mapa de calor del mercado",
-    "🎯 Señales del día",
-    "🧠 ¿Qué tan confiable es?",
-])
+tab1, tab2, tab3 = st.tabs(["Mercado", "Señales", "Modelo"])
 
 
-# ---------------- TAB 1: MAPA DE CALOR ----------------
+# ---------------- TAB 1: MERCADO ----------------
 with tab1:
-    st.markdown('<div class="section-title">Cómo se movieron hoy las 9 acciones analizadas</div>', unsafe_allow_html=True)
-    st.caption(
-        "Tamaño del recuadro = volumen negociado (liquidez).  "
-        "Color = variación % del día: 🟢 verde subió, 🔴 rojo bajó."
-    )
+    st.markdown("""
+    <div class="section-head">
+        <div class="section-kicker">Panorama</div>
+        <h2 class="section-title">Cómo cerró el mercado hoy</h2>
+        <p class="section-desc">
+            Tamaño del recuadro proporcional al volumen negociado en dólares.
+            Color según variación porcentual del cierre.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     heat_sorted = heat_df.sort_values("Change", ascending=False).reset_index(drop=True)
 
     labels = [
-        f"<b>{r.Ticker}</b><br><span style='font-size:1.15em'>{r.Change:+.2f}%</span>"
+        f"<b>{r.Ticker}</b><br><span style='font-size:1.05em'>{r.Change:+.2f}%</span>"
         for r in heat_sorted.itertuples()
     ]
 
@@ -407,208 +688,238 @@ with tab1:
         marker=dict(
             colors=heat_sorted["Change"].tolist(),
             colorscale=[
-                [0.00, FINVIZ_COLORS[0]],
-                [0.17, FINVIZ_COLORS[1]],
-                [0.33, FINVIZ_COLORS[2]],
-                [0.50, FINVIZ_COLORS[3]],
-                [0.67, FINVIZ_COLORS[4]],
-                [0.83, FINVIZ_COLORS[5]],
+                [0.00, FINVIZ_COLORS[0]], [0.17, FINVIZ_COLORS[1]],
+                [0.33, FINVIZ_COLORS[2]], [0.50, FINVIZ_COLORS[3]],
+                [0.67, FINVIZ_COLORS[4]], [0.83, FINVIZ_COLORS[5]],
                 [1.00, FINVIZ_COLORS[6]],
             ],
-            cmid=0,
-            cmin=-3,
-            cmax=3,
-            line=dict(width=3, color="#ffffff"),
+            cmid=0, cmin=-3, cmax=3,
+            line=dict(width=2, color="#faf9f6"),
         ),
         textposition="middle center",
-        textfont=dict(size=16, color="white", family="Inter"),
+        textfont=dict(size=15, color="white", family="Inter"),
         hovertemplate=(
             "<b>%{label}</b><br>"
-            "Empresa: %{customdata[0]}<br>"
-            "Cambio diario: %{customdata[1]:+.2f}%<br>"
+            "%{customdata[0]}<br>"
+            "Cambio: %{customdata[1]:+.2f}%<br>"
             "Precio: $%{customdata[2]:.2f}"
             "<extra></extra>"
         ),
-        tiling=dict(pad=3),
+        tiling=dict(pad=2),
         sort=True,
     ))
 
     fig_heat.update_layout(
-        height=520,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        margin=dict(l=10, r=10, t=20, b=10),
+        height=500,
+        paper_bgcolor="#faf9f6",
+        plot_bgcolor="#faf9f6",
+        margin=dict(l=0, r=0, t=0, b=0),
     )
 
     st.plotly_chart(fig_heat, use_container_width=True)
 
-    # ---- TERMÓMETRO ----
+    # Termómetro editorial
+    seg_labels = ["-3%", "-2%", "-1%", "0%", "+1%", "+2%", "+3%"]
+    ticks = ["−3", "−2", "−1", "0", "+1", "+2", "+3"]
+
+    segs_html = "".join(
+        f'<div class="thermo-seg" style="background:{c};">{lbl}</div>'
+        for c, lbl in zip(FINVIZ_COLORS, seg_labels)
+    )
+    ticks_html = "".join(f'<div class="thermo-tick">{t}</div>' for t in ticks)
+
     st.markdown(f"""
-    <div class="thermo-wrap">
-        <div class="thermo-bar">
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[0]};">-3%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[1]};">-2%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[2]};">-1%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[3]};">0%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[4]};">+1%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[5]};">+2%</div>
-            <div class="thermo-seg" style="background:{FINVIZ_COLORS[6]};">+3%</div>
+    <div class="thermo">
+        <div class="thermo-head">
+            <div class="thermo-title">Escala de variación diaria</div>
+            <div class="thermo-axis-labels">
+                <span>Negativo</span>
+                <span>Positivo</span>
+            </div>
         </div>
-        <div class="thermo-labels">
-            <span>Fuerte caída</span>
-            <span>Sin cambio</span>
-            <span>Fuerte subida</span>
-        </div>
+        <div class="thermo-bar">{segs_html}</div>
+        <div class="thermo-ticks">{ticks_html}</div>
     </div>
     """, unsafe_allow_html=True)
 
 
 # ---------------- TAB 2: SEÑALES ----------------
 with tab2:
-    st.markdown('<div class="section-title">Predicciones explicadas de forma simple</div>', unsafe_allow_html=True)
-
     st.markdown("""
-    <div class="info-box">
-        💡 Para cada acción, mostramos <b>cómo reparte el modelo el 100% de probabilidad</b>
-        entre los tres posibles resultados del próximo día hábil.
-        Ordenamos desde la señal más segura hasta la menos segura.
+    <div class="section-head">
+        <div class="section-kicker">Pronóstico</div>
+        <h2 class="section-title">Señal del modelo para el próximo día hábil</h2>
+        <p class="section-desc">
+            Distribución de probabilidad asignada por el modelo a cada escenario.
+            Ordenada de mayor a menor confianza.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="callout">
+        <strong>Nota.</strong> Una confianza del 45% no significa certeza.
+        El modelo reparte el 100% de probabilidad entre tres escenarios posibles:
+        subida mayor a 1%, bajada mayor a 1%, o movimiento lateral.
+    </div>
+    """, unsafe_allow_html=True)
 
+    # Header
+    st.markdown("""
+    <div class="signal-table">
+        <div class="signal-header">
+            <span>Emisor</span>
+            <span>Cierre</span>
+            <span>Señal</span>
+            <span>Distribución</span>
+            <span style="text-align:right;">Confianza</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    rows_html = ""
     for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
         t = row["Ticker"]
         conf = row["Confianza"]
-        conf_text, conf_color, conf_emoji = confidence_label(conf)
-
-        if row["Señal"] == 2:
-            badge_class, badge_text, card_class = "badge-bull", "🟢 SUBIDA esperada", "bull"
-        elif row["Señal"] == 1:
-            badge_class, badge_text, card_class = "badge-bear", "🔴 BAJADA esperada", "bear"
-        else:
-            badge_class, badge_text, card_class = "badge-lat", "⚪ SIN CAMBIO esperado", "lat"
-
-        company = COMPANY_NAMES.get(t, t)
         p_sub = row["P_subida"] * 100
         p_baj = row["P_bajada"] * 100
         p_lat = row["P_sin_cambio"] * 100
+        company = COMPANY_NAMES.get(t, t)
 
-        st.markdown(f"""
-        <div class="signal-card {card_class}">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-                <div>
-                    <div class="signal-ticker">{t}
-                        <span style="font-weight:500; color:#64748b; font-size:1rem;">· {company}</span>
-                    </div>
-                    <div class="signal-price">Precio actual: ${row['Precio actual']:.2f}</div>
+        if row["Señal"] == 2:
+            arrow, arrow_class, label = "▲", "bull", "Subida esperada"
+        elif row["Señal"] == 1:
+            arrow, arrow_class, label = "▼", "bear", "Bajada esperada"
+        else:
+            arrow, arrow_class, label = "—", "lat", "Sin cambio esperado"
+
+        rows_html += f"""
+        <div class="signal-row">
+            <div>
+                <div class="sr-symbol">{t}</div>
+                <div class="sr-company">{company}</div>
+            </div>
+            <div>
+                <div class="sr-price">${row['Precio']:.2f}</div>
+                <div class="sr-price-label">USD</div>
+            </div>
+            <div>
+                <div class="sr-signal-main">
+                    <span class="sr-arrow {arrow_class}">{arrow}</span>
+                    <span>{label}</span>
                 </div>
-                <div style="text-align:right;">
-                    <span class="signal-badge {badge_class}">{badge_text}</span>
+                <div class="sr-signal-sub">Próximo día hábil</div>
+            </div>
+            <div>
+                <div class="sr-dist-bar">
+                    <div class="sr-dist-seg bull" style="width:{p_sub:.1f}%;"></div>
+                    <div class="sr-dist-seg bear" style="width:{p_baj:.1f}%;"></div>
+                    <div class="sr-dist-seg lat"  style="width:{p_lat:.1f}%;"></div>
+                </div>
+                <div class="sr-dist-labels">
+                    <span>{p_sub:.0f}% ↑</span>
+                    <span>{p_baj:.0f}% ↓</span>
+                    <span>{p_lat:.0f}% →</span>
                 </div>
             </div>
-
-            <div style="margin-top:1rem;">
-                <div style="color:#64748b; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.4rem;">
-                    Reparto de probabilidad del modelo
-                </div>
-
-                <div class="prob-row">
-                    <span class="prob-label">🟢 Subida &gt; 1%</span>
-                    <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_sub:.0f}%; background:#10b981;"></div>
-                    </div>
-                    <span class="prob-pct">{p_sub:.0f}%</span>
-                </div>
-
-                <div class="prob-row">
-                    <span class="prob-label">🔴 Bajada &gt; 1%</span>
-                    <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_baj:.0f}%; background:#ef4444;"></div>
-                    </div>
-                    <span class="prob-pct">{p_baj:.0f}%</span>
-                </div>
-
-                <div class="prob-row">
-                    <span class="prob-label">⚪ Sin cambio</span>
-                    <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_lat:.0f}%; background:#94a3b8;"></div>
-                    </div>
-                    <span class="prob-pct">{p_lat:.0f}%</span>
-                </div>
-            </div>
-
-            <div style="margin-top:0.85rem; color:{conf_color}; font-size:0.85rem; font-weight:700;">
-                {conf_emoji} {conf_text} · el modelo asigna {conf:.0%} al resultado más probable
+            <div>
+                <div class="sr-conf-val">{conf:.0%}</div>
+                <div class="sr-conf-lbl">{confidence_level(conf)}</div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+
+    st.markdown(f'<div class="signal-table" style="border-top:none;">{rows_html}</div>',
+                unsafe_allow_html=True)
 
 
-# ---------------- TAB 3: CONFIABILIDAD ----------------
+# ---------------- TAB 3: MODELO ----------------
 with tab3:
-    st.markdown('<div class="section-title">🧠 ¿Qué tan buenos son estos modelos?</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section-head">
+        <div class="section-kicker">Metodología</div>
+        <h2 class="section-title">Rendimiento de los modelos</h2>
+        <p class="section-desc">
+            Precisión sobre el 20% de los datos reservados para validación.
+            Comparado contra el baseline trivial (predecir siempre la clase mayoritaria).
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="info-box">
-        <b>Para entender los números:</b> Imagina que el modelo mira 100 días del pasado y trata
-        de adivinar qué pasó. Si acierta 45 veces, su precisión es 45%.<br><br>
-        🔸 <b>Baseline (tonto):</b> Lo que acertarías si SIEMPRE dijeses "sube" sin pensar.<br>
-        🔸 <b>KNN:</b> Busca días parecidos en el pasado y copia lo que pasó.<br>
-        🔸 <b>XGBoost:</b> Construye reglas del tipo "si pasa A y B, entonces C".
+    <div class="callout">
+        <strong>KNN.</strong> Busca los 50 días históricos más parecidos al día actual y
+        clasifica según lo que ocurrió después. &nbsp;
+        <strong>XGBoost.</strong> Ensamblado de árboles de decisión con boosting que
+        construye reglas no lineales sobre los cinco indicadores técnicos.
     </div>
     """, unsafe_allow_html=True)
 
     display_df = summary_df.copy()
-    display_df["Clase Mayoritaria"] = display_df["Clase Mayoritaria"].apply(lambda x: f"{x:.2%}")
-    display_df["KNN"] = display_df["KNN"].apply(lambda x: f"{x:.2%}")
-    display_df["XGBoost"] = display_df["XGBoost"].apply(lambda x: f"{x:.2%}")
-    display_df["Mejor Precisión"] = display_df["Mejor Precisión"].apply(lambda x: f"{x:.2%}")
     display_df = display_df.rename(columns={
-        "Clase Mayoritaria": "Baseline (tonto)",
-        "Mejor Precisión": "Mejor del modelo",
+        "Ticker": "Ticker",
+        "Baseline": "Baseline",
+        "KNN": "KNN",
+        "XGBoost": "XGBoost",
+        "Mejor": "Mejor",
+        "MejorPrecision": "Máxima",
     })
+    for c in ["Baseline", "KNN", "XGBoost", "Máxima"]:
+        display_df[c] = display_df[c].apply(lambda x: f"{x*100:.1f}%")
+
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    st.markdown('<div class="section-title">📊 Comparación visual</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:2rem;'></div>", unsafe_allow_html=True)
+
     fig_cmp = go.Figure()
-    fig_cmp.add_trace(go.Bar(name="KNN", x=summary_df["Ticker"], y=summary_df["KNN"],
-                             marker_color="#3b82f6"))
-    fig_cmp.add_trace(go.Bar(name="XGBoost", x=summary_df["Ticker"], y=summary_df["XGBoost"],
-                             marker_color="#a855f7"))
-    fig_cmp.add_trace(go.Scatter(name="Baseline (tonto)",
-                                 x=summary_df["Ticker"], y=summary_df["Clase Mayoritaria"],
-                                 mode="lines+markers",
-                                 line=dict(color="#f59e0b", dash="dash", width=2)))
+    fig_cmp.add_trace(go.Bar(
+        name="KNN", x=summary_df["Ticker"], y=summary_df["KNN"],
+        marker_color="#0f2a4a",
+    ))
+    fig_cmp.add_trace(go.Bar(
+        name="XGBoost", x=summary_df["Ticker"], y=summary_df["XGBoost"],
+        marker_color="#8a6a2b",
+    ))
+    fig_cmp.add_trace(go.Scatter(
+        name="Baseline", x=summary_df["Ticker"], y=summary_df["Baseline"],
+        mode="lines+markers",
+        line=dict(color="#a8a29e", dash="dot", width=1.5),
+        marker=dict(size=6),
+    ))
     fig_cmp.update_layout(
         barmode="group",
-        height=420,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=dict(color="#0f172a"),
-        yaxis=dict(tickformat=".0%", title="Precisión", gridcolor="#e2e8f0"),
-        xaxis=dict(gridcolor="#e2e8f0"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=10, r=10, t=20, b=10),
+        height=400,
+        paper_bgcolor="#faf9f6",
+        plot_bgcolor="#faf9f6",
+        font=dict(color="#14110f", family="Inter", size=12),
+        yaxis=dict(
+            tickformat=".0%", title=None,
+            gridcolor="#e7e5e0", zerolinecolor="#e7e5e0",
+        ),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)", title=None),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            xanchor="right", x=1, font=dict(size=11),
+        ),
+        margin=dict(l=0, r=0, t=40, b=0),
+        bargap=0.35,
     )
     st.plotly_chart(fig_cmp, use_container_width=True)
-
-    st.markdown("""
-    <div class="disclaimer">
-        ⚠️ <b>Aviso importante:</b> Esta herramienta es un proyecto educativo y de investigación.
-        <b>NO es asesoría financiera.</b> Los mercados son impredecibles y los modelos de inteligencia
-        artificial pueden equivocarse. Nunca tomes decisiones de inversión basándote únicamente en esta app.
-        Consulta siempre a un profesional certificado.
-    </div>
-    """, unsafe_allow_html=True)
 
 
 # =========================================================
 # FOOTER
 # =========================================================
-st.markdown("---")
-st.markdown(
-    f'<div class="footer-note">🚀 Stock Signal AI · Construido con Streamlit + scikit-learn + XGBoost · '
-    f'Última actualización: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>',
-    unsafe_allow_html=True,
-)
+st.markdown(f"""
+<div class="footer">
+    <div class="footer-disclaimer">
+        Documento con fines exclusivamente informativos y educativos.
+        No constituye asesoría financiera ni recomendación de inversión.
+        Los mercados son impredecibles.
+    </div>
+    <div style="text-align:right;">
+        Stock Signal<br>
+        {today.strftime('%d · %m · %Y')}
+    </div>
+</div>
+""", unsafe_allow_html=True)
