@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# CONSTANTES FIJAS (idénticas al notebook original)
+# CONSTANTES
 # =========================================================
 TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
 PERIOD = "5y"
@@ -39,8 +39,19 @@ COMPANY_NAMES = {
     "MSFT": "Microsoft", "ORCL": "Oracle",
 }
 
+# Colores estilo Finviz (7 paradas de -3% a +3%)
+FINVIZ_COLORS = [
+    "#FF2C2C",  # -3%
+    "#B03A3A",  # -2%
+    "#5E2E2E",  # -1%
+    "#4B5563",  #  0%
+    "#235E34",  # +1%
+    "#1A9C42",  # +2%
+    "#1DD14F",  # +3%
+]
+
 # =========================================================
-# UTILIDADES DE FECHA
+# UTILIDADES
 # =========================================================
 def next_business_day(from_date=None):
     if from_date is None:
@@ -60,116 +71,150 @@ def format_spanish_date(dt):
 
 def confidence_label(pct):
     if pct >= 0.60:
-        return "Señal fuerte", "#34d399", "💪"
+        return "Señal fuerte", "#059669", "💪"
     elif pct >= 0.45:
-        return "Señal moderada", "#fbbf24", "⚡"
+        return "Señal moderada", "#d97706", "⚡"
     else:
-        return "Señal débil", "#f87171", "⚠️"
+        return "Señal débil", "#dc2626", "⚠️"
 
 
 # =========================================================
-# CSS
+# CSS — TEMA CLARO
 # =========================================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-    .stApp { background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 60%); }
+    .stApp {
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    }
+
+    /* Texto base oscuro */
+    h1, h2, h3, h4, h5, h6, p, span, div, label { color: #0f172a; }
 
     .hero-title {
         font-size: 3rem; font-weight: 800;
-        background: linear-gradient(90deg, #22d3ee, #3b82f6, #a855f7);
+        background: linear-gradient(90deg, #0891b2, #2563eb, #7c3aed);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         text-align: center; margin: 0; letter-spacing: -1px;
     }
     .hero-subtitle {
-        text-align: center; color: #94a3b8; font-size: 1rem;
+        text-align: center; color: #64748b; font-size: 1rem;
         margin-top: 0.3rem; margin-bottom: 1.5rem;
     }
 
     .date-banner {
-        background: linear-gradient(90deg, rgba(34,211,238,0.12), rgba(168,85,247,0.12));
-        border: 1px solid rgba(34,211,238,0.35);
+        background: linear-gradient(90deg, #e0f2fe, #ede9fe);
+        border: 1px solid #bae6fd;
         border-radius: 16px; padding: 1.25rem 1.75rem;
         text-align: center; margin-bottom: 2rem;
+        box-shadow: 0 4px 14px rgba(15,23,42,0.05);
     }
     .date-banner .label {
-        color: #94a3b8; font-size: 0.85rem;
-        text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+        color: #0369a1; font-size: 0.85rem;
+        text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
     }
     .date-banner .value {
-        color: #22d3ee; font-size: 1.6rem; font-weight: 800; margin-top: 0.3rem;
+        color: #0f172a; font-size: 1.6rem; font-weight: 800; margin-top: 0.3rem;
     }
-    .date-banner .sub { color: #cbd5e1; font-size: 0.9rem; margin-top: 0.4rem; }
+    .date-banner .sub { color: #475569; font-size: 0.9rem; margin-top: 0.4rem; }
 
     .signal-card {
-        background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95));
-        border: 1px solid rgba(148,163,184,0.18);
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
         border-radius: 18px; padding: 1.5rem 1.75rem;
         margin-bottom: 1rem; position: relative; overflow: hidden;
+        box-shadow: 0 2px 10px rgba(15,23,42,0.05);
     }
-    .signal-card.bull { border-left: 5px solid #34d399; }
-    .signal-card.bear { border-left: 5px solid #f87171; }
-    .signal-card.lat  { border-left: 5px solid #cbd5e1; }
+    .signal-card.bull { border-left: 5px solid #10b981; }
+    .signal-card.bear { border-left: 5px solid #ef4444; }
+    .signal-card.lat  { border-left: 5px solid #94a3b8; }
 
-    .signal-ticker { font-size: 1.5rem; font-weight: 800; color: #f1f5f9; }
-    .signal-company { font-size: 0.85rem; color: #94a3b8; font-weight: 500; }
-    .signal-price { font-size: 1.1rem; color: #cbd5e1; font-weight: 600; }
+    .signal-ticker { font-size: 1.5rem; font-weight: 800; color: #0f172a; }
+    .signal-company { font-size: 0.85rem; color: #64748b; font-weight: 500; }
+    .signal-price { font-size: 1.1rem; color: #475569; font-weight: 600; }
     .signal-badge {
         display: inline-block; padding: 0.5rem 1.1rem; border-radius: 999px;
         font-weight: 700; font-size: 0.95rem;
     }
-    .badge-bull { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
-    .badge-bear { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.4); }
-    .badge-lat  { background: rgba(148,163,184,0.15); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.4); }
+    .badge-bull { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .badge-bear { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .badge-lat  { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
 
     .prob-row {
         display: flex; align-items: center; gap: 0.75rem; margin-top: 0.55rem;
         font-size: 0.9rem;
     }
-    .prob-label { color: #cbd5e1; width: 150px; font-weight: 500; }
+    .prob-label { color: #334155; width: 155px; font-weight: 500; }
     .prob-bar-bg {
-        flex: 1; height: 10px; background: rgba(148,163,184,0.13);
+        flex: 1; height: 10px; background: #e2e8f0;
         border-radius: 999px; overflow: hidden;
     }
-    .prob-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
-    .prob-pct { color: #94a3b8; width: 55px; text-align: right; font-weight: 600; font-size: 0.85rem; }
+    .prob-bar-fill { height: 100%; border-radius: 999px; }
+    .prob-pct { color: #64748b; width: 55px; text-align: right; font-weight: 700; font-size: 0.85rem; }
 
     .stTabs [data-baseweb="tab-list"] {
-        gap: 6px; background: rgba(30,41,59,0.5);
+        gap: 6px; background: #f1f5f9;
         padding: 6px; border-radius: 12px;
+        border: 1px solid #e2e8f0;
     }
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px; padding: 10px 18px;
-        font-weight: 600; color: #94a3b8;
+        font-weight: 600; color: #64748b;
     }
     .stTabs [aria-selected="true"] {
         background: linear-gradient(90deg, #0891b2, #2563eb);
         color: white !important;
     }
+    .stTabs [aria-selected="true"] p { color: white !important; }
 
     .section-title {
-        color: #f1f5f9; font-size: 1.25rem; font-weight: 700;
+        color: #0f172a; font-size: 1.25rem; font-weight: 700;
         margin-top: 1.5rem; margin-bottom: 0.75rem;
-        padding-left: 0.7rem; border-left: 4px solid #22d3ee;
+        padding-left: 0.7rem; border-left: 4px solid #0891b2;
     }
     .info-box {
-        background: rgba(34,211,238,0.06); border-left: 4px solid #22d3ee;
+        background: #eff6ff; border-left: 4px solid #3b82f6;
         padding: 1rem 1.25rem; border-radius: 8px;
-        color: #cbd5e1; font-size: 0.92rem; margin-top: 1rem;
+        color: #1e3a8a; font-size: 0.92rem; margin-top: 1rem;
     }
     .disclaimer {
-        background: rgba(251,191,36,0.08); border-left: 4px solid #fbbf24;
+        background: #fffbeb; border-left: 4px solid #f59e0b;
         padding: 1rem 1.25rem; border-radius: 8px;
-        color: #fcd34d; font-size: 0.88rem; margin-top: 2rem;
+        color: #92400e; font-size: 0.88rem; margin-top: 2rem;
+    }
+
+    /* Termómetro */
+    .thermo-wrap {
+        margin-top: 0.8rem;
+        padding: 0.5rem 0.25rem 0.25rem 0.25rem;
+    }
+    .thermo-bar {
+        display: flex; height: 34px; border-radius: 6px; overflow: hidden;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.06);
+    }
+    .thermo-seg {
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        color: white; font-weight: 700; font-size: 0.85rem;
+    }
+    .thermo-labels {
+        display: flex; justify-content: space-between;
+        margin-top: 0.4rem; color: #64748b; font-size: 0.78rem; font-weight: 500;
+    }
+
+    /* Footer limpio */
+    .footer-note {
+        color: #64748b; font-size: 0.8rem; text-align: center;
+        padding: 1rem 0 2rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 # =========================================================
-# PIPELINE CACHEADO
+# PIPELINE
 # =========================================================
 def clean_stock_data(df):
     data = df.dropna().copy()
@@ -218,9 +263,7 @@ def compute_everything():
         except Exception:
             continue
 
-    results_rows = []
-    signals_rows = []
-    heat_rows = []
+    results_rows, signals_rows, heat_rows = [], [], []
     importances = {}
 
     for t, df in processed.items():
@@ -250,7 +293,6 @@ def compute_everything():
             "Mejor Precisión": max(acc_knn, acc_xgb),
         })
 
-        # Señal con TODOS los datos
         knn_all = KNeighborsClassifier(n_neighbors=K_NEIGHBORS).fit(X, y)
         latest = X.iloc[[-1]]
         pred = int(knn_all.predict(latest)[0])
@@ -267,22 +309,19 @@ def compute_everything():
             "Precio actual": float(df["Close"].iloc[-1]),
         })
 
-        # Datos para el heatmap
         last_close = float(df["Close"].iloc[-1])
         prev_close = float(df["Close"].iloc[-2])
         change_pct = (last_close - prev_close) / prev_close * 100
         last_vol = float(df["Volume"].iloc[-1])
-        dollar_volume = last_close * last_vol
 
         heat_rows.append({
             "Ticker": t,
             "Company": COMPANY_NAMES.get(t, t),
             "Change": change_pct,
             "Price": last_close,
-            "Size": dollar_volume,
+            "Size": last_close * last_vol,
         })
 
-        # Importancias
         xgb_full = XGBClassifier(
             n_estimators=N_ESTIMATORS, max_depth=MAX_DEPTH,
             learning_rate=LEARNING_RATE, random_state=RANDOM_STATE,
@@ -368,18 +407,18 @@ with tab1:
         marker=dict(
             colors=heat_sorted["Change"].tolist(),
             colorscale=[
-                [0.00, "#7f1d1d"],
-                [0.30, "#b91c1c"],
-                [0.45, "#4b0f0f"],
-                [0.50, "#1f2937"],
-                [0.55, "#0a3a1f"],
-                [0.70, "#15803d"],
-                [1.00, "#065f46"],
+                [0.00, FINVIZ_COLORS[0]],
+                [0.17, FINVIZ_COLORS[1]],
+                [0.33, FINVIZ_COLORS[2]],
+                [0.50, FINVIZ_COLORS[3]],
+                [0.67, FINVIZ_COLORS[4]],
+                [0.83, FINVIZ_COLORS[5]],
+                [1.00, FINVIZ_COLORS[6]],
             ],
             cmid=0,
-            cmin=-4,
-            cmax=4,
-            line=dict(width=3, color="#0f172a"),
+            cmin=-3,
+            cmax=3,
+            line=dict(width=3, color="#ffffff"),
         ),
         textposition="middle center",
         textfont=dict(size=16, color="white", family="Inter"),
@@ -395,28 +434,36 @@ with tab1:
     ))
 
     fig_heat.update_layout(
-        template="plotly_dark",
         height=520,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
         margin=dict(l=10, r=10, t=20, b=10),
     )
 
     st.plotly_chart(fig_heat, use_container_width=True)
 
-    # Leyenda inferior
-    st.markdown("""
-    <div style="display:flex; justify-content:center; gap:1.2rem; margin-top:0.5rem; color:#94a3b8; font-size:0.82rem;">
-        <span>🔴 Bajó más de 2%</span>
-        <span>🟥 Bajó</span>
-        <span>⬛ Sin cambio</span>
-        <span>🟩 Subió</span>
-        <span>🟢 Subió más de 2%</span>
+    # ---- TERMÓMETRO ----
+    st.markdown(f"""
+    <div class="thermo-wrap">
+        <div class="thermo-bar">
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[0]};">-3%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[1]};">-2%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[2]};">-1%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[3]};">0%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[4]};">+1%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[5]};">+2%</div>
+            <div class="thermo-seg" style="background:{FINVIZ_COLORS[6]};">+3%</div>
+        </div>
+        <div class="thermo-labels">
+            <span>Fuerte caída</span>
+            <span>Sin cambio</span>
+            <span>Fuerte subida</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
 
-# ---------------- TAB 2: SEÑALES DEL DÍA ----------------
+# ---------------- TAB 2: SEÑALES ----------------
 with tab2:
     st.markdown('<div class="section-title">Predicciones explicadas de forma simple</div>', unsafe_allow_html=True)
 
@@ -443,7 +490,6 @@ with tab2:
             badge_class, badge_text, card_class = "badge-lat", "⚪ SIN CAMBIO esperado", "lat"
 
         company = COMPANY_NAMES.get(t, t)
-
         p_sub = row["P_subida"] * 100
         p_baj = row["P_bajada"] * 100
         p_lat = row["P_sin_cambio"] * 100
@@ -453,7 +499,7 @@ with tab2:
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
                 <div>
                     <div class="signal-ticker">{t}
-                        <span style="font-weight:500; color:#94a3b8; font-size:1rem;">· {company}</span>
+                        <span style="font-weight:500; color:#64748b; font-size:1rem;">· {company}</span>
                     </div>
                     <div class="signal-price">Precio actual: ${row['Precio actual']:.2f}</div>
                 </div>
@@ -463,14 +509,14 @@ with tab2:
             </div>
 
             <div style="margin-top:1rem;">
-                <div style="color:#94a3b8; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.4rem;">
+                <div style="color:#64748b; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.4rem;">
                     Reparto de probabilidad del modelo
                 </div>
 
                 <div class="prob-row">
                     <span class="prob-label">🟢 Subida &gt; 1%</span>
                     <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_sub:.0f}%; background:#34d399;"></div>
+                        <div class="prob-bar-fill" style="width:{p_sub:.0f}%; background:#10b981;"></div>
                     </div>
                     <span class="prob-pct">{p_sub:.0f}%</span>
                 </div>
@@ -478,7 +524,7 @@ with tab2:
                 <div class="prob-row">
                     <span class="prob-label">🔴 Bajada &gt; 1%</span>
                     <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_baj:.0f}%; background:#f87171;"></div>
+                        <div class="prob-bar-fill" style="width:{p_baj:.0f}%; background:#ef4444;"></div>
                     </div>
                     <span class="prob-pct">{p_baj:.0f}%</span>
                 </div>
@@ -486,13 +532,13 @@ with tab2:
                 <div class="prob-row">
                     <span class="prob-label">⚪ Sin cambio</span>
                     <div class="prob-bar-bg">
-                        <div class="prob-bar-fill" style="width:{p_lat:.0f}%; background:#cbd5e1;"></div>
+                        <div class="prob-bar-fill" style="width:{p_lat:.0f}%; background:#94a3b8;"></div>
                     </div>
                     <span class="prob-pct">{p_lat:.0f}%</span>
                 </div>
             </div>
 
-            <div style="margin-top:0.85rem; color:{conf_color}; font-size:0.85rem; font-weight:600;">
+            <div style="margin-top:0.85rem; color:{conf_color}; font-size:0.85rem; font-weight:700;">
                 {conf_emoji} {conf_text} · el modelo asigna {conf:.0%} al resultado más probable
             </div>
         </div>
@@ -507,8 +553,7 @@ with tab3:
     <div class="info-box">
         <b>Para entender los números:</b> Imagina que el modelo mira 100 días del pasado y trata
         de adivinar qué pasó. Si acierta 45 veces, su precisión es 45%.<br><br>
-        🔸 <b>Baseline (tonto):</b> Lo que acertarías si SIEMPRE dijeses "sube" sin pensar.
-        Hay que superarlo para que la IA sirva de algo.<br>
+        🔸 <b>Baseline (tonto):</b> Lo que acertarías si SIEMPRE dijeses "sube" sin pensar.<br>
         🔸 <b>KNN:</b> Busca días parecidos en el pasado y copia lo que pasó.<br>
         🔸 <b>XGBoost:</b> Construye reglas del tipo "si pasa A y B, entonces C".
     </div>
@@ -533,11 +578,16 @@ with tab3:
                              marker_color="#a855f7"))
     fig_cmp.add_trace(go.Scatter(name="Baseline (tonto)",
                                  x=summary_df["Ticker"], y=summary_df["Clase Mayoritaria"],
-                                 mode="lines+markers", line=dict(color="#fbbf24", dash="dash", width=2)))
+                                 mode="lines+markers",
+                                 line=dict(color="#f59e0b", dash="dash", width=2)))
     fig_cmp.update_layout(
-        barmode="group", template="plotly_dark", height=420,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(tickformat=".0%", title="Precisión"),
+        barmode="group",
+        height=420,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font=dict(color="#0f172a"),
+        yaxis=dict(tickformat=".0%", title="Precisión", gridcolor="#e2e8f0"),
+        xaxis=dict(gridcolor="#e2e8f0"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=10, r=10, t=20, b=10),
     )
@@ -557,7 +607,8 @@ with tab3:
 # FOOTER
 # =========================================================
 st.markdown("---")
-st.caption(
-    f"🚀 Stock Signal AI · Construido con Streamlit + scikit-learn + XGBoost · "
-    f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+st.markdown(
+    f'<div class="footer-note">🚀 Stock Signal AI · Construido con Streamlit + scikit-learn + XGBoost · '
+    f'Última actualización: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>',
+    unsafe_allow_html=True,
 )
