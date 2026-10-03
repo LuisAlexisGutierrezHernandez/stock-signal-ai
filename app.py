@@ -20,6 +20,17 @@ st.set_page_config(
 )
 
 # =========================================================
+# HELPER: render HTML de forma robusta
+# =========================================================
+def render_html(html_str):
+    """Usa st.html() (no pasa por markdown) con fallback a st.markdown."""
+    try:
+        st.html(html_str)
+    except AttributeError:
+        st.markdown(html_str, unsafe_allow_html=True)
+
+
+# =========================================================
 # CONSTANTES
 # =========================================================
 TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
@@ -44,7 +55,6 @@ FINVIZ_COLORS = [
     "#235E34", "#1A9C42", "#1DD14F",
 ]
 
-# Paleta de gráficos (más saturada)
 C_INK = "#14110f"
 C_INK_2 = "#57534e"
 C_GRID = "#e7e5e0"
@@ -78,13 +88,12 @@ def format_spanish_date(dt, short=False):
 
 
 def confidence_label(pct):
-    """Devuelve (etiqueta, color, emoji, descripción)."""
     if pct >= 0.50:
-        return "Alta convicción", C_BULL, "◆", "Señal sólida: el modelo tiene un favorito claro."
+        return "Alta convicción", C_BULL, "high"
     elif pct >= 0.45:
-        return "Convicción media", C_GOLD, "◆", "Buena señal, aunque el riesgo sigue presente."
+        return "Convicción media", C_GOLD, "mid"
     else:
-        return "Convicción baja", C_BEAR, "◆", "Señal moderada: el riesgo es elevado."
+        return "Convicción baja", C_BEAR, "low"
 
 
 # =========================================================
@@ -126,6 +135,35 @@ st.markdown("""
         font-family: 'JetBrains Mono', monospace !important;
         font-size: 0.72rem; letter-spacing: 0.14em;
         text-transform: uppercase; color: #57534e !important;
+    }
+
+    /* BOTÓN ACTUALIZAR */
+    .stButton > button,
+    .stButton > button:focus,
+    .stButton > button:active {
+        background: #14110f !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 0 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.18em !important;
+        text-transform: uppercase !important;
+        padding: 0.7rem 1.4rem !important;
+        font-weight: 600 !important;
+        width: 100% !important;
+        transition: none !important;
+    }
+    .stButton > button:hover {
+        background: #0f2a4a !important;
+        color: #ffffff !important;
+    }
+    .stButton > button p {
+        color: #ffffff !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.18em !important;
+        font-weight: 600 !important;
     }
 
     /* HERO */
@@ -321,25 +359,63 @@ st.markdown("""
         background: #ffffff !important;
     }
 
-    /* SELECTBOX */
-    .stSelectbox label {
+    /* SELECTBOX — sobreescritura agresiva */
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stSelectbox"] label p {
         font-size: 0.7rem !important;
         letter-spacing: 0.2em !important;
         text-transform: uppercase !important;
         color: #78716c !important;
         font-weight: 600 !important;
     }
-    .stSelectbox div[data-baseweb="select"] > div {
+
+    div[data-testid="stSelectbox"] > div > div,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"],
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:first-child,
+    div[data-testid="stSelectbox"] div[role="button"],
+    div[data-testid="stSelectbox"] div[role="combobox"] {
+        background-color: #ffffff !important;
         background: #ffffff !important;
+        color: #14110f !important;
         border: 1px solid #14110f !important;
         border-radius: 0 !important;
-        font-family: 'JetBrains Mono', monospace !important;
-        font-size: 0.95rem !important;
-        color: #14110f !important;
         min-height: 48px !important;
+        box-shadow: none !important;
     }
-    .stSelectbox div[data-baseweb="select"] svg { color: #14110f !important; }
-    .stSelectbox div[data-baseweb="select"] div[aria-selected] {
+
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] * ,
+    div[data-testid="stSelectbox"] div[role="button"] * {
+        color: #14110f !important;
+        background-color: transparent !important;
+    }
+
+    div[data-testid="stSelectbox"] svg {
+        color: #14110f !important;
+        fill: #14110f !important;
+    }
+
+    /* Dropdown del selectbox */
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] > div,
+    ul[data-baseweb="menu"],
+    ul[role="listbox"],
+    li[role="option"],
+    div[role="option"] {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+        color: #14110f !important;
+        border-radius: 0 !important;
+    }
+    li[role="option"]:hover,
+    div[role="option"]:hover,
+    li[aria-selected="true"],
+    div[aria-selected="true"] {
+        background-color: #f1f5f9 !important;
+        color: #14110f !important;
+    }
+    li[role="option"] *,
+    div[role="option"] * {
         color: #14110f !important;
     }
 
@@ -476,19 +552,30 @@ def compute_everything():
 
 
 # =========================================================
-# MASTHEAD + HERO + DATELINE
+# MASTHEAD (con botón actualizar)
 # =========================================================
 forecast_day = next_business_day()
 today = datetime.now()
 
-st.markdown(f"""
-<div class="masthead">
-    <div class="masthead-brand">Stock Signal · Análisis de mercado</div>
-    <div class="masthead-date">{today.strftime('%d · %m · %Y')} — Edición diaria</div>
-</div>
-""", unsafe_allow_html=True)
+mh_col1, mh_col2, mh_col3 = st.columns([3, 1, 1.4])
 
-st.markdown(f"""
+with mh_col1:
+    render_html('<div class="masthead-brand" style="padding-top:0.8rem;">Stock Signal · Análisis de mercado</div>')
+
+with mh_col2:
+    if st.button("⟳ Actualizar"):
+        st.cache_data.clear()
+        st.rerun()
+
+with mh_col3:
+    render_html(f'<div class="masthead-date" style="text-align:right; padding-top:0.8rem;">{today.strftime("%d · %m · %Y")} — Edición diaria</div>')
+
+render_html('<div style="border-bottom:1px solid #14110f; margin-bottom:3rem; margin-top:-0.5rem;"></div>')
+
+# =========================================================
+# HERO + DATELINE
+# =========================================================
+render_html(f'''
 <div class="hero">
     <div class="kicker">Informe de inteligencia de mercado</div>
     <h1 class="hero-title">Nueve acciones.<br><em>Una señal por acción.</em></h1>
@@ -498,9 +585,9 @@ st.markdown(f"""
         cinco años de historia bursátil y dos modelos independientes.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
-st.markdown(f"""
+render_html(f'''
 <div class="dateline">
     <div class="dateline-label">Próximo día hábil</div>
     <div class="dateline-value">
@@ -508,7 +595,7 @@ st.markdown(f"""
         <span class="muted">· hoy es {format_spanish_date(today)}</span>
     </div>
 </div>
-""", unsafe_allow_html=True)
+''')
 
 # =========================================================
 # CARGA
@@ -528,7 +615,7 @@ if not processed:
 # =========================================================
 # SECCIÓN 1 — MAPA DE CALOR
 # =========================================================
-st.markdown("""
+render_html('''
 <div class="section">
     <div class="section-kicker">Panorama</div>
     <h2 class="section-title">Cómo cerró el mercado hoy</h2>
@@ -537,7 +624,7 @@ st.markdown("""
         Color según variación porcentual del cierre.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
 heat_sorted = heat_df.sort_values("Change", ascending=False).reset_index(drop=True)
 
@@ -600,25 +687,22 @@ segs_html = "".join(
 )
 ticks_html = "".join(f'<div class="thermo-tick">{t}</div>' for t in ticks)
 
-st.markdown(f"""
-<div class="thermo">
-    <div class="thermo-head">
-        <div class="thermo-title">Escala de variación diaria</div>
-        <div class="thermo-axis-labels">
-            <span>Negativo</span>
-            <span>Positivo</span>
-        </div>
-    </div>
-    <div class="thermo-bar">{segs_html}</div>
-    <div class="thermo-ticks">{ticks_html}</div>
-</div>
-""", unsafe_allow_html=True)
+render_html(
+    '<div class="thermo">'
+    '<div class="thermo-head">'
+    '<div class="thermo-title">Escala de variación diaria</div>'
+    '<div class="thermo-axis-labels"><span>Negativo</span><span>Positivo</span></div>'
+    '</div>'
+    f'<div class="thermo-bar">{segs_html}</div>'
+    f'<div class="thermo-ticks">{ticks_html}</div>'
+    '</div>'
+)
 
 
 # =========================================================
 # SECCIÓN 2 — SELECTOR + ANÁLISIS INDIVIDUAL
 # =========================================================
-st.markdown("""
+render_html('''
 <div class="section">
     <div class="section-kicker">Detalle</div>
     <h2 class="section-title">Análisis individual</h2>
@@ -627,7 +711,7 @@ st.markdown("""
         y la importancia relativa de cada variable en el modelo.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
 ticker_sel = st.selectbox(
     "Emisor",
@@ -638,14 +722,14 @@ ticker_sel = st.selectbox(
 df_sel = processed[ticker_sel]
 
 # --- Precio + Medias ---
-st.markdown(f"""
+render_html(f'''
 <div style="margin-top:2rem; margin-bottom:1rem;">
     <div class="section-kicker">Serie temporal · {ticker_sel}</div>
     <h3 style="font-family:'Instrument Serif',serif; font-size:1.4rem; font-weight:400; margin:0; color:#14110f;">
         Precio de cierre y medias móviles
     </h3>
 </div>
-""", unsafe_allow_html=True)
+''')
 
 fig_price = go.Figure()
 fig_price.add_trace(go.Scatter(x=df_sel.index, y=df_sel["Close"], name="Cierre",
@@ -674,14 +758,14 @@ col_a, col_b = st.columns(2)
 
 # --- RSI ---
 with col_a:
-    st.markdown("""
+    render_html('''
     <div style="margin-top:1rem; margin-bottom:0.75rem;">
         <div class="section-kicker">RSI (14)</div>
         <h4 style="font-family:'Instrument Serif',serif; font-size:1.15rem; font-weight:400; margin:0; color:#14110f;">
             Índice de fuerza relativa
         </h4>
     </div>
-    """, unsafe_allow_html=True)
+    ''')
 
     fig_rsi = go.Figure()
     fig_rsi.add_trace(go.Scatter(x=df_sel.index, y=df_sel["RSI"],
@@ -703,14 +787,14 @@ with col_a:
 
 # --- Distribución ---
 with col_b:
-    st.markdown("""
+    render_html('''
     <div style="margin-top:1rem; margin-bottom:0.75rem;">
         <div class="section-kicker">Frecuencia histórica</div>
         <h4 style="font-family:'Instrument Serif',serif; font-size:1.15rem; font-weight:400; margin:0; color:#14110f;">
             Distribución de resultados
         </h4>
     </div>
-    """, unsafe_allow_html=True)
+    ''')
 
     dist = df_sel["Target"].value_counts(normalize=True).sort_index()
     labels_short = {2: "Subió", 1: "Bajó", 0: "Sin cambio"}
@@ -740,14 +824,14 @@ with col_b:
     st.plotly_chart(fig_dist, use_container_width=True)
 
 # --- Importancia ---
-st.markdown(f"""
+render_html(f'''
 <div style="margin-top:2rem; margin-bottom:0.75rem;">
     <div class="section-kicker">Pesos del modelo · {ticker_sel}</div>
     <h3 style="font-family:'Instrument Serif',serif; font-size:1.4rem; font-weight:400; margin:0; color:#14110f;">
         Importancia de cada indicador
     </h3>
 </div>
-""", unsafe_allow_html=True)
+''')
 
 imp = pd.Series(importances[ticker_sel]).sort_values()
 nice_names = {
@@ -787,7 +871,7 @@ st.plotly_chart(fig_imp, use_container_width=True)
 # =========================================================
 # SECCIÓN 3 — SEÑALES
 # =========================================================
-st.markdown("""
+render_html('''
 <div class="section">
     <div class="section-kicker">Pronóstico</div>
     <h2 class="section-title">Señal del modelo para el próximo día hábil</h2>
@@ -796,28 +880,30 @@ st.markdown("""
         Ordenada de mayor a menor convicción.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
-st.markdown("""
+render_html('''
 <div class="callout">
     <strong>Nota.</strong> Una confianza del 45% no significa certeza.
     El modelo reparte el 100% de probabilidad entre tres escenarios posibles:
     subida mayor a 1%, bajada mayor a 1%, o movimiento lateral.
 </div>
-""", unsafe_allow_html=True)
+''')
 
-st.markdown("""
-<div class="signal-table">
-    <div class="signal-header">
-        <span>Emisor</span>
-        <span>Cierre</span>
-        <span>Señal</span>
-        <span>Distribución</span>
-        <span style="text-align:right;">Convicción</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# --- Header ---
+render_html(
+    '<div class="signal-table">'
+    '<div class="signal-header">'
+    '<span>Emisor</span>'
+    '<span>Cierre</span>'
+    '<span>Señal</span>'
+    '<span>Distribución</span>'
+    '<span style="text-align:right;">Convicción</span>'
+    '</div>'
+    '</div>'
+)
 
+# --- Filas (una sola línea, sin indentación) ---
 rows_html = ""
 for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
     t = row["Ticker"]
@@ -834,57 +920,48 @@ for _, row in signals_df.sort_values("Confianza", ascending=False).iterrows():
     else:
         arrow, arrow_class, label = "—", "lat", "Sin cambio esperado"
 
-    conf_text, conf_color, _, _ = confidence_label(conf)
-    if conf >= 0.50:
-        conf_class = "high"
-    elif conf >= 0.45:
-        conf_class = "mid"
-    else:
-        conf_class = "low"
+    conf_text, conf_color, conf_class = confidence_label(conf)
 
-    rows_html += f"""
-    <div class="signal-row">
-        <div>
-            <div class="sr-symbol">{t}</div>
-            <div class="sr-company">{company}</div>
-        </div>
-        <div>
-            <div class="sr-price">${row['Precio']:.2f}</div>
-            <div class="sr-price-label">USD</div>
-        </div>
-        <div>
-            <div class="sr-signal-main">
-                <span class="sr-arrow {arrow_class}">{arrow}</span>{label}
-            </div>
-            <div class="sr-signal-sub">Próximo día hábil</div>
-        </div>
-        <div>
-            <div class="sr-dist-bar">
-                <div class="sr-dist-seg bull" style="width:{p_sub:.1f}%;"></div>
-                <div class="sr-dist-seg bear" style="width:{p_baj:.1f}%;"></div>
-                <div class="sr-dist-seg lat"  style="width:{p_lat:.1f}%;"></div>
-            </div>
-            <div class="sr-dist-labels">
-                <span class="bull">{p_sub:.0f}% ↑</span>
-                <span class="bear">{p_baj:.0f}% ↓</span>
-                <span class="lat">{p_lat:.0f}% →</span>
-            </div>
-        </div>
-        <div>
-            <div class="sr-conf-val">{conf:.0%}</div>
-            <div class="sr-conf-lbl {conf_class}">{conf_text}</div>
-        </div>
-    </div>
-    """
+    rows_html += (
+        f'<div class="signal-row">'
+        f'<div>'
+        f'<div class="sr-symbol">{t}</div>'
+        f'<div class="sr-company">{company}</div>'
+        f'</div>'
+        f'<div>'
+        f'<div class="sr-price">${row["Precio"]:.2f}</div>'
+        f'<div class="sr-price-label">USD</div>'
+        f'</div>'
+        f'<div>'
+        f'<div class="sr-signal-main"><span class="sr-arrow {arrow_class}">{arrow}</span>{label}</div>'
+        f'<div class="sr-signal-sub">Próximo día hábil</div>'
+        f'</div>'
+        f'<div>'
+        f'<div class="sr-dist-bar">'
+        f'<div class="sr-dist-seg bull" style="width:{p_sub:.1f}%;"></div>'
+        f'<div class="sr-dist-seg bear" style="width:{p_baj:.1f}%;"></div>'
+        f'<div class="sr-dist-seg lat" style="width:{p_lat:.1f}%;"></div>'
+        f'</div>'
+        f'<div class="sr-dist-labels">'
+        f'<span class="bull">{p_sub:.0f}% ↑</span>'
+        f'<span class="bear">{p_baj:.0f}% ↓</span>'
+        f'<span class="lat">{p_lat:.0f}% →</span>'
+        f'</div>'
+        f'</div>'
+        f'<div>'
+        f'<div class="sr-conf-val">{conf:.0%}</div>'
+        f'<div class="sr-conf-lbl {conf_class}">{conf_text}</div>'
+        f'</div>'
+        f'</div>'
+    )
 
-st.markdown(f'<div class="signal-table" style="border-top:none;">{rows_html}</div>',
-            unsafe_allow_html=True)
+render_html(f'<div class="signal-table" style="border-top:none;">{rows_html}</div>')
 
 
 # =========================================================
 # SECCIÓN 4 — CONVICCIÓN EXPLICADA
 # =========================================================
-st.markdown("""
+render_html('''
 <div class="section">
     <div class="section-kicker">Lectura de la señal</div>
     <h2 class="section-title">Cómo interpretar la convicción</h2>
@@ -893,9 +970,9 @@ st.markdown("""
         Los mercados son ruidosos: incluso una convicción alta puede fallar.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
-st.markdown(f"""
+render_html('''
 <div class="callout">
     <strong>· Alta convicción (≥ 50%)</strong> — Señal sólida. El modelo tiene un favorito claro
     entre los tres escenarios. Es el rango donde el pronóstico merece más atención.<br><br>
@@ -904,13 +981,13 @@ st.markdown(f"""
     <strong>· Convicción baja (&lt; 45%)</strong> — Señal moderada, riesgo elevado. La probabilidad
     está repartida y el modelo no encuentra un patrón dominante. Trátese como referencia, no como guía.
 </div>
-""", unsafe_allow_html=True)
+''')
 
 
 # =========================================================
 # SECCIÓN 5 — MODELO
 # =========================================================
-st.markdown("""
+render_html('''
 <div class="section">
     <div class="section-kicker">Metodología</div>
     <h2 class="section-title">Rendimiento de los modelos</h2>
@@ -919,16 +996,16 @@ st.markdown("""
         con cinco años de historia bursátil y validación temporal.
     </p>
 </div>
-""", unsafe_allow_html=True)
+''')
 
-st.markdown("""
+render_html('''
 <div class="callout">
     <strong>KNN.</strong> Busca los 50 días históricos más parecidos al día actual y
     clasifica según lo que ocurrió después. &nbsp;
     <strong>XGBoost.</strong> Ensamblado de árboles de decisión con boosting que
     construye reglas no lineales sobre los cinco indicadores técnicos.
 </div>
-""", unsafe_allow_html=True)
+''')
 
 display_df = summary_df.copy()
 display_df = display_df.rename(columns={
@@ -942,7 +1019,7 @@ for c in ["KNN", "XGBoost", "Máxima precisión"]:
 
 st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-st.markdown("<div style='height:2rem;'></div>", unsafe_allow_html=True)
+render_html('<div style="height:2rem;"></div>')
 
 fig_cmp = go.Figure()
 fig_cmp.add_trace(go.Bar(
@@ -975,7 +1052,7 @@ st.plotly_chart(fig_cmp, use_container_width=True)
 # =========================================================
 # FOOTER
 # =========================================================
-st.markdown(f"""
+render_html(f'''
 <div class="footer">
     <div class="footer-disclaimer">
         Documento con fines exclusivamente informativos y educativos.
@@ -984,7 +1061,7 @@ st.markdown(f"""
     </div>
     <div style="text-align:right;">
         Stock Signal<br>
-        {today.strftime('%d · %m · %Y')}
+        {today.strftime("%d · %m · %Y")}
     </div>
 </div>
-""", unsafe_allow_html=True)
+''')
